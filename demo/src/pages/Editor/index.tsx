@@ -1,5 +1,5 @@
 /* eslint-disable react/jsx-wrap-multilines */
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import template from '@demo/store/template';
 import { useAppSelector } from '@demo/hooks/useAppSelector';
@@ -8,29 +8,24 @@ import {
   Button,
   ConfigProvider,
   Dropdown,
+  Input,
   Menu,
   Message,
+  Modal,
   PageHeader,
-  Select,
 } from '@arco-design/web-react';
-import { IconLeft } from '@arco-design/web-react/icon';
+import { IconDownload, IconCopy } from '@arco-design/web-react/icon';
 import { useQuery } from '@demo/hooks/useQuery';
 import { useHistory } from 'react-router-dom';
 import { cloneDeep } from 'lodash';
 import { Loading } from '@demo/components/loading';
-import mjml from 'mjml-browser';
-import services from '@demo/services';
-import { saveAs } from 'file-saver';
+import { getTemplate } from '@demo/config/getTemplate';
+
 import {
-  BlockAvatarWrapper,
   EmailEditor,
   EmailEditorProvider,
   IEmailTemplate,
 } from 'easy-email-editor';
-
-import { Stack } from '@demo/components/Stack';
-import { pushEvent } from '@demo/utils/pushEvent';
-import { UserStorage } from '@demo/utils/user-storage';
 
 import { AdvancedType, IBlockData, JsonToMjml } from 'easy-email-core';
 import { ExtensionProps, SimpleLayout } from 'easy-email-extensions';
@@ -40,8 +35,6 @@ import 'easy-email-extensions/lib/style.css';
 import blueTheme from '@arco-themes/react-easy-email-theme/css/arco.css?inline';
 
 import enUS from '@arco-design/web-react/es/locale/en-US';
-
-import { useShowCommercialEditor } from '@demo/hooks/useShowCommercialEditor';
 import { useWindowSize } from 'react-use';
 
 const defaultCategories: ExtensionProps['categories'] = [
@@ -49,33 +42,12 @@ const defaultCategories: ExtensionProps['categories'] = [
     label: 'Content',
     active: true,
     blocks: [
-      {
-        type: AdvancedType.TEXT,
-      },
-      {
-        type: AdvancedType.IMAGE,
-      },
-      {
-        type: AdvancedType.BUTTON,
-      },
-      {
-        type: AdvancedType.SOCIAL,
-      },
-      {
-        type: AdvancedType.DIVIDER,
-      },
-      {
-        type: AdvancedType.SPACER,
-      },
-      {
-        type: AdvancedType.HERO,
-      },
-      {
-        type: AdvancedType.WRAPPER,
-      },
-      {
-        type: AdvancedType.TABLE,
-      },
+      { type: AdvancedType.TEXT },
+      { type: AdvancedType.IMAGE },
+      { type: AdvancedType.BUTTON },
+      { type: AdvancedType.DIVIDER },
+      { type: AdvancedType.SPACER },
+      { type: AdvancedType.SOCIAL },
     ],
   },
   {
@@ -110,24 +82,27 @@ const defaultCategories: ExtensionProps['categories'] = [
 ];
 
 export default function Editor() {
-  const { featureEnabled } = useShowCommercialEditor();
   const dispatch = useDispatch();
   const history = useHistory();
   const templateData = useAppSelector('template');
   const { width } = useWindowSize();
-  const compact = width > 1600;
-  const { id, userId } = useQuery();
+  const compact = width > 1280;
+  const { id } = useQuery();
   const loading = useLoading(template.loadings.fetchById);
+
+  const [savedArticleId, setSavedArticleId] = useState<number | null>(null);
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [pendingValues, setPendingValues] = useState<IEmailTemplate | null>(null);
 
   useEffect(() => {
     if (id) {
-      if (!userId) {
-        UserStorage.getAccount().then(account => {
-          dispatch(template.actions.fetchById({ id: +id, userId: account.user_id }));
-        });
-      } else {
-        dispatch(template.actions.fetchById({ id: +id, userId: +userId }));
-      }
+      dispatch(template.actions.fetchById({ id: +id }));
+      getTemplate(+id).then(builtIn => {
+        if (!builtIn) {
+          setSavedArticleId(+id);
+        }
+      });
     } else {
       dispatch(template.actions.fetchDefaultTemplate(undefined));
     }
@@ -135,61 +110,92 @@ export default function Editor() {
     return () => {
       dispatch(template.actions.set(null));
     };
-  }, [dispatch, id, userId]);
-
-  const onUploadImage = async (blob: Blob) => {
-    return services.common.uploadByQiniu(blob);
-  };
-
-  const onExportMJML = (values: IEmailTemplate) => {
-    const mjmlString = JsonToMjml({
-      data: values.content,
-      mode: 'production',
-      context: values.content,
-    });
-
-    pushEvent({ event: 'MJMLExport', payload: { values } });
-    navigator.clipboard.writeText(mjmlString);
-    saveAs(new Blob([mjmlString], { type: 'text/mjml' }), 'easy-email.mjml');
-  };
-
-  const onExportHTML = (values: IEmailTemplate) => {
-    const mjmlString = JsonToMjml({
-      data: values.content,
-      mode: 'production',
-      context: values.content,
-    });
-
-    const html = mjml(mjmlString, {}).html;
-
-    pushEvent({ event: 'HTMLExport', payload: { values } });
-    navigator.clipboard.writeText(html);
-    saveAs(new Blob([html], { type: 'text/html' }), 'easy-email.html');
-  };
-
-  const onExportJSON = (values: IEmailTemplate) => {
-    navigator.clipboard.writeText(JSON.stringify(values, null, 2));
-    saveAs(
-      new Blob([JSON.stringify(values, null, 2)], { type: 'application/json' }),
-      'easy-email.json',
-    );
-  };
+  }, [dispatch, id]);
 
   const initialValues: IEmailTemplate | null = useMemo(() => {
     if (!templateData) return null;
     const sourceData = cloneDeep(templateData.content) as IBlockData;
     return {
       ...templateData,
-      content: sourceData, // replace standard block
+      content: sourceData,
     };
   }, [templateData]);
 
   const onSubmit = useCallback(
     async (values: IEmailTemplate) => {
-      console.log(values);
+      if (savedArticleId) {
+        dispatch(
+          template.actions.updateById({
+            id: savedArticleId,
+            template: values,
+            success() {
+              Message.success('Saved successfully.');
+            },
+          }),
+        );
+      } else {
+        setPendingValues(values);
+        setTemplateName(values.subject || '');
+        setShowNameModal(true);
+      }
     },
-    [dispatch, history, id, initialValues],
+    [dispatch, savedArticleId],
   );
+
+  const handleNameConfirm = useCallback(() => {
+    if (!pendingValues || !templateName.trim()) return;
+
+    dispatch(
+      template.actions.create({
+        template: pendingValues,
+        name: templateName.trim(),
+        success(newId) {
+          setSavedArticleId(newId);
+          history.replace(`/editor?id=${newId}`);
+          Message.success('Saved successfully.');
+        },
+      }),
+    );
+    setShowNameModal(false);
+    setPendingValues(null);
+  }, [dispatch, history, pendingValues, templateName]);
+
+  const exportHtml = useCallback(async (values: IEmailTemplate) => {
+    try {
+      const mjml = (await import('mjml-browser')).default;
+      const mjmlStr = JsonToMjml({
+        data: values.content,
+        mode: 'production',
+        context: values.content,
+      });
+      const { html } = mjml(mjmlStr, { validationLevel: 'skip' });
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${values.subject || 'email'}.html`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      Message.error('Export failed. Please try again.');
+    }
+  }, []);
+
+  const copyHtml = useCallback(async (values: IEmailTemplate) => {
+    try {
+      const mjml = (await import('mjml-browser')).default;
+      const mjmlStr = JsonToMjml({
+        data: values.content,
+        mode: 'production',
+        context: values.content,
+      });
+      const { html } = mjml(mjmlStr, { validationLevel: 'skip' });
+      await navigator.clipboard.writeText(html);
+      Message.success('HTML copied to clipboard.');
+    } catch (e) {
+      Message.error('Copy failed. Please try again.');
+    }
+  }, []);
 
   if (!templateData && loading) {
     return (
@@ -208,21 +214,84 @@ export default function Editor() {
         <EmailEditorProvider
           height={'calc(100vh - 68px)'}
           data={initialValues}
-          onUploadImage={onUploadImage}
           onSubmit={onSubmit}
           dashed={false}
           compact={compact}
         >
-          {({ values }, { submit, restart }) => {
+          {({ values }, helper) => {
             return (
               <>
-                <SimpleLayout>
+                <PageHeader
+                  style={{ background: 'var(--color-bg-2)', padding: '6px 20px' }}
+                  backIcon
+                  onBack={() => history.push('/')}
+                  title={
+                    <Input
+                      style={{ width: 260, fontWeight: 600 }}
+                      value={values.subject}
+                      placeholder='Untitled email'
+                      onChange={v => helper.change('subject', v)}
+                      onPressEnter={e => (e.target as HTMLInputElement).blur()}
+                    />
+                  }
+                  extra={
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <Dropdown
+                        droplist={
+                          <Menu>
+                            <Menu.Item
+                              key='download'
+                              onClick={() => exportHtml(values)}
+                            >
+                              <IconDownload style={{ marginRight: 6 }} />
+                              Download .html file
+                            </Menu.Item>
+                            <Menu.Item
+                              key='copy'
+                              onClick={() => copyHtml(values)}
+                            >
+                              <IconCopy style={{ marginRight: 6 }} />
+                              Copy HTML to clipboard
+                            </Menu.Item>
+                          </Menu>
+                        }
+                        position='br'
+                      >
+                        <Button icon={<IconDownload />}>Export</Button>
+                      </Dropdown>
+                      <Button type='primary' onClick={() => helper.submit()}>
+                        Save
+                      </Button>
+                    </div>
+                  }
+                />
+                <SimpleLayout showSourceCode={false}>
                   <EmailEditor />
                 </SimpleLayout>
               </>
             );
           }}
         </EmailEditorProvider>
+
+        <Modal
+          title='Name your email'
+          visible={showNameModal}
+          onOk={handleNameConfirm}
+          onCancel={() => {
+            setShowNameModal(false);
+            setPendingValues(null);
+          }}
+          okText='Save'
+          okButtonProps={{ disabled: !templateName.trim() }}
+        >
+          <Input
+            placeholder='Enter a name for this email'
+            value={templateName}
+            onChange={setTemplateName}
+            onPressEnter={handleNameConfirm}
+            autoFocus
+          />
+        </Modal>
       </div>
     </ConfigProvider>
   );

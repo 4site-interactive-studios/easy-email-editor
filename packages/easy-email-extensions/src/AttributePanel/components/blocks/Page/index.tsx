@@ -25,7 +25,7 @@ export function Page({ hideSubTitle, hideSubject }: PageProps) {
         <Collapse defaultActiveKey={['0', '1']}>
           <Collapse.Item
             name='0'
-            header={t('Email Setting')}
+            header={t('Email Settings')}
           >
             <Space direction='vertical'>
               {!hideSubject && (
@@ -37,7 +37,7 @@ export function Page({ hideSubTitle, hideSubject }: PageProps) {
               )}
               {!hideSubTitle && (
                 <TextField
-                  label={t('SubTitle')}
+                  label={t('Preview text')}
                   name={'subTitle'}
                   inline
                 />
@@ -48,9 +48,9 @@ export function Page({ hideSubTitle, hideSubject }: PageProps) {
                 inline
               />
               <InputWithUnitField
-                label={t('Breakpoint')}
+                label={t('Mobile breakpoint')}
                 helpText={t(
-                  'Allows you to control on which breakpoint the layout should go desktop/mobile.',
+                  'Screen width at which the layout switches to mobile view (e.g. 480px).',
                 )}
                 name={`${focusIdx}.data.value.breakpoint`}
                 inline
@@ -59,7 +59,7 @@ export function Page({ hideSubTitle, hideSubject }: PageProps) {
           </Collapse.Item>
           <Collapse.Item
             name='1'
-            header={t('Theme Setting')}
+            header={t('Global Design')}
           >
             <Stack
               vertical

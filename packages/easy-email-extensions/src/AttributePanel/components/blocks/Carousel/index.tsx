@@ -39,7 +39,7 @@ export function Carousel() {
       <CollapseWrapper defaultActiveKey={['0', '1', '2', '3', '4']}>
         <Collapse.Item
           name='0'
-          header={t('Dimension')}
+          header={t('Size')}
         >
           <Space direction='vertical'>
             <InputWithUnitField
@@ -162,7 +162,7 @@ export function Carousel() {
         </Collapse.Item>
         <Collapse.Item
           name='4'
-          header={t('Extra')}
+          header={t('Advanced')}
         >
           <Grid.Col span={24}>
             <ClassName />

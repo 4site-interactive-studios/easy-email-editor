@@ -1,23 +1,40 @@
 import { IArticle } from '@demo/services/article';
 import React, { useCallback } from 'react';
-import { IconEdit, IconDelete } from '@arco-design/web-react/icon';
+import { IconEdit, IconDelete, IconCopy } from '@arco-design/web-react/icon';
 import dayjs from 'dayjs';
 import styles from './index.module.scss';
-import { Popconfirm } from '@arco-design/web-react';
-import { Link, useHistory } from 'react-router-dom';
+import { Button, Popconfirm, Space } from '@arco-design/web-react';
+import { useHistory } from 'react-router-dom';
 import template from '@demo/store/template';
 import { useDispatch } from 'react-redux';
 import templateList from '@demo/store/templateList';
-import { pushEvent } from '@demo/utils/pushEvent';
 import { getLoadingByKey, useLoading } from '@demo/hooks/useLoading';
 import { Loading } from '@demo/components/loading';
 
-interface CardItemProps {
-  data: IArticle;
+const PLACEHOLDER_COLORS = [
+  '#4F7CBA', '#E07B54', '#59A96A', '#A855F7',
+  '#F59E0B', '#EF4444', '#06B6D4', '#84CC16',
+];
+
+function placeholderColor(name: string): string {
+  return PLACEHOLDER_COLORS[(name.charCodeAt(0) || 0) % PLACEHOLDER_COLORS.length];
 }
 
-export function CardItem(props: CardItemProps) {
-  const { data } = props;
+function timeAgo(unix: number): string {
+  const seconds = Math.floor(Date.now() / 1000) - unix;
+  if (seconds < 60) return 'Just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+  return dayjs(unix * 1000).format('MMM D, YYYY');
+}
+
+interface CardItemProps {
+  data: IArticle;
+  isBuiltIn?: boolean;
+}
+
+export function CardItem({ data, isBuiltIn }: CardItemProps) {
   const dispatch = useDispatch();
   const history = useHistory();
 
@@ -34,76 +51,91 @@ export function CardItem(props: CardItemProps) {
         success() {
           dispatch(templateList.actions.fetch(undefined));
         },
-      })
+      }),
     );
   }, [data, dispatch]);
 
-  const onDuplicate: React.MouseEventHandler<HTMLAnchorElement> = useCallback(
-    (ev) => {
-      ev.preventDefault();
-      dispatch(
-        template.actions.duplicate({
-          article: data,
-          _actionKey: data.article_id,
-          success(id) {
-            history.push(`/editor?id=${id}`);
-          },
-        })
-      );
-    },
-    [data, dispatch, history]
-  );
+  const onDuplicate = useCallback(() => {
+    dispatch(
+      template.actions.duplicate({
+        article: data,
+        _actionKey: data.article_id,
+        success(id) {
+          history.push(`/editor?id=${id}`);
+        },
+      }),
+    );
+  }, [data, dispatch, history]);
+
+  const onEdit = useCallback(() => {
+    history.push(`/editor?id=${data.article_id}&userId=${data.user_id}`);
+  }, [data, history]);
+
+  const hasThumbnail = Boolean(data.picture);
+  const initial = (data.title || 'E').charAt(0).toUpperCase();
+  const bg = placeholderColor(data.title || '');
+  const timestamp = data.updated_at || data.created_at;
 
   return (
-    <div
-      key={data.article_id}
-      className={styles.templeteItem}
-      style={{ backgroundImage: `url(${data.picture})` }}
-    >
-      <div className={styles.bottom}>
-        <div className={styles.title}>Title: {data.title}</div>
-        <div className={styles.title}>
-          Date {dayjs(data.created_at * 1000).format('YYYY-MM-DD')}
+    <div className={styles.card}>
+      {/* Thumbnail area */}
+      <div className={styles.thumbnail}>
+        {hasThumbnail ? (
+          <img src={data.picture} alt={data.title} />
+        ) : (
+          <div className={styles.placeholder} style={{ background: bg }}>
+            <span>{initial}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Card body */}
+      <div className={styles.body}>
+        <div className={styles.name} title={data.title}>
+          {data.title}
+        </div>
+        <div className={styles.meta}>
+          {isBuiltIn ? 'Template' : `Edited ${timeAgo(timestamp)}`}
         </div>
       </div>
-      <div className={styles.mask}>
+
+      {/* Actions */}
+      <div className={styles.actions}>
         {loading ? (
-          <div className={styles.listBottom}>
-            <Loading loading color='#ffffff' />
-          </div>
+          <Loading loading color='#666' />
         ) : (
-          <div className={styles.listBottom}>
-            <div className={styles.listItem}>
+          <Space size='mini'>
+            <Button
+              size='small'
+              type='primary'
+              icon={<IconEdit />}
+              onClick={onEdit}
+            >
+              {isBuiltIn ? 'Open' : 'Edit'}
+            </Button>
+            <Button
+              size='small'
+              icon={<IconCopy />}
+              title='Duplicate'
+              onClick={onDuplicate}
+            />
+            {!isBuiltIn && (
               <Popconfirm
-                title='Are you want to delete it?'
+                title='Delete this email?'
                 onConfirm={onDelete}
-                okText='Ok'
+                okText='Delete'
+                okButtonProps={{ status: 'danger' }}
                 cancelText='Cancel'
               >
-                <IconDelete />
-                &nbsp;Delete
+                <Button
+                  size='small'
+                  status='danger'
+                  icon={<IconDelete />}
+                  title='Delete'
+                />
               </Popconfirm>
-            </div>
-            <div className={styles.listItem}>
-              <Link
-                to={`/editor?id=${data.article_id}&userId=${data.user_id}`}
-                onClick={() =>
-                  pushEvent({
-                    event: 'Edit',
-                    payload: { article_id: data.article_id, title: data.title },
-                  })
-                }
-              >
-                <IconEdit />
-                &nbsp;Edit
-              </Link>
-            </div>
-            <div className={styles.listItem}>
-              <Link to='javascript:void(0)' onClick={onDuplicate}>
-                Duplicate
-              </Link>
-            </div>
-          </div>
+            )}
+          </Space>
         )}
       </div>
     </div>

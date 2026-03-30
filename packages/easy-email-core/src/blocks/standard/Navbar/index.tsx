@@ -37,7 +37,7 @@ export type INavbar = IBlockData<
 
 export const Navbar: IBlock<INavbar> = createBlock({
   get name() {
-    return t('Navbar');
+    return t('Navigation');
   },
   type: BasicType.NAVBAR,
   create: (payload) => {

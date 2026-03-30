@@ -2,6 +2,7 @@ import { ShortcutToolbar } from '../ShortcutToolbar';
 import { Button, Card, ConfigProvider, Layout, Tabs } from '@arco-design/web-react';
 import { useEditorProps } from 'easy-email-editor';
 import React, { useState } from 'react';
+import { useWindowSize } from 'react-use';
 import { SourceCodePanel } from '../SourceCodePanel';
 import { AttributePanel } from '../AttributePanel';
 import { BlockLayer, BlockLayerProps } from '../BlockLayer';
@@ -22,7 +23,12 @@ export const SimpleLayout: React.FC<
 > = props => {
   const { height: containerHeight } = useEditorProps();
   const { showSourceCode = true, defaultShowLayer = true, jsonReadOnly = false, mjmlReadOnly = true } = props;
-  const [collapsed, setCollapsed] = useState(!defaultShowLayer);
+  const { width: viewportWidth } = useWindowSize();
+  const isNarrow = viewportWidth < 1280;
+
+  const [collapsed, setCollapsed] = useState(() => !defaultShowLayer || isNarrow);
+  const [rightCollapsed, setRightCollapsed] = useState(() => isNarrow);
+
   return (
     <ConfigProvider locale={enUS}>
       <Layout
@@ -31,7 +37,7 @@ export const SimpleLayout: React.FC<
           display: 'flex',
           width: '100%',
           overflow: 'hidden',
-          minWidth: 1400,
+          minWidth: 960,
         }}
       >
         <Layout.Sider
@@ -40,14 +46,14 @@ export const SimpleLayout: React.FC<
           collapsible
           trigger={null}
           breakpoint='xl'
-          collapsedWidth={60}
-          width={300}
+          collapsedWidth={76}
+          width={316}
         >
           <Card
             bodyStyle={{ padding: 0 }}
             style={{ border: 'none' }}
           >
-            <Card.Grid style={{ width: 60, textAlign: 'center' }}>
+            <Card.Grid style={{ width: 76, textAlign: 'center' }}>
               <ShortcutToolbar />
               <Button
                 style={{
@@ -87,48 +93,71 @@ export const SimpleLayout: React.FC<
         <Layout.Sider
           style={{
             height: containerHeight,
-            minWidth: 300,
-            maxWidth: 350,
-            width: 350,
+            minWidth: rightCollapsed ? 32 : 300,
+            maxWidth: rightCollapsed ? 32 : 350,
+            width: rightCollapsed ? 32 : 350,
+            transition: 'all 0.2s',
+            overflow: 'visible',
+            position: 'relative',
           }}
           className={styles.rightSide}
         >
-          <Card
-            size='small'
-            id='rightSide'
+          {/* Right panel collapse toggle */}
+          <Button
             style={{
-              maxHeight: '100%',
-              height: '100%',
-              borderLeft: 'none',
+              position: 'absolute',
+              left: -16,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              zIndex: 10,
+              width: 20,
+              height: 40,
+              minWidth: 'unset',
+              padding: 0,
+              borderRadius: '4px 0 0 4px',
+              boxShadow: '-2px 0 6px rgba(0,0,0,0.12)',
             }}
-            bodyStyle={{ padding: 0 }}
-            className={styles.customScrollBarV2}
-          >
-            <Tabs className={styles.layoutTabs}>
-              <Tabs.TabPane
-                title={
-                  <div style={{ height: 31, lineHeight: '31px' }}>
-                    {t('Configuration')}
-                  </div>
-                }
-              >
-                <AttributePanel />
-              </Tabs.TabPane>
-              {showSourceCode && (
+            icon={rightCollapsed ? <IconLeft /> : <IconRight />}
+            onClick={() => setRightCollapsed(v => !v)}
+          />
+          {!rightCollapsed && (
+            <Card
+              size='small'
+              id='rightSide'
+              style={{
+                maxHeight: '100%',
+                height: '100%',
+                borderLeft: 'none',
+              }}
+              bodyStyle={{ padding: 0 }}
+              className={styles.customScrollBarV2}
+            >
+              <Tabs className={styles.layoutTabs}>
                 <Tabs.TabPane
-                  destroyOnHide
-                  key='Source code'
                   title={
                     <div style={{ height: 31, lineHeight: '31px' }}>
-                      {t('Source code')}
+                      {t('Configuration')}
                     </div>
                   }
                 >
-                  <SourceCodePanel jsonReadOnly={jsonReadOnly} mjmlReadOnly={mjmlReadOnly} />
+                  <AttributePanel />
                 </Tabs.TabPane>
-              )}
-            </Tabs>
-          </Card>
+                {showSourceCode && (
+                  <Tabs.TabPane
+                    destroyOnHide
+                    key='Source code'
+                    title={
+                      <div style={{ height: 31, lineHeight: '31px' }}>
+                        {t('Source code')}
+                      </div>
+                    }
+                  >
+                    <SourceCodePanel jsonReadOnly={jsonReadOnly} mjmlReadOnly={mjmlReadOnly} />
+                  </Tabs.TabPane>
+                )}
+              </Tabs>
+            </Card>
+          )}
         </Layout.Sider>
 
         <InteractivePrompt />

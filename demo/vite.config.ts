@@ -5,6 +5,7 @@ import { injectHtml } from 'vite-plugin-html';
 
 export default defineConfig({
   server: {
+    port: 3200,
     fs: {
       strict: false,
     },

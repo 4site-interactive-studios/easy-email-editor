@@ -1,6 +1,5 @@
-import { USER } from '@demo/constants';
-import { article, IArticle } from '@demo/services/article';
-import { UserStorage } from '@demo/utils/user-storage';
+import { IArticle } from '@demo/services/article';
+import { localStorageTemplates } from '@demo/utils/local-storage-templates';
 import createSliceState from './common/createSliceState';
 
 export default createSliceState({
@@ -11,20 +10,7 @@ export default createSliceState({
   },
   effects: {
     fetch: async state => {
-      let provideUserData: IArticle[] = [];
-      // if (USER.provideUserId && USER.provideCategoryId) {
-      //   // Provided template
-      //   const data = await article.getArticleList({
-      //     userId: USER.provideUserId,
-      //     categoryId: USER.provideCategoryId,
-      //     page: 1,
-      //     size: 1000,
-      //   });
-      //   provideUserData = data.list;
-      // }
-
-      // user data
-      const list = [...provideUserData];
+      const list = localStorageTemplates.getAll();
       list.sort((a, b) => (a.updated_at > b.updated_at ? -1 : 1));
       return list;
     },

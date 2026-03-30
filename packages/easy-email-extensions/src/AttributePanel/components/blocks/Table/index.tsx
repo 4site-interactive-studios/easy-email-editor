@@ -31,7 +31,7 @@ export function Table() {
       <CollapseWrapper defaultActiveKey={['-1', '0', '1', '2', '3']}>
         <Collapse.Item
           name='1'
-          header={t('Dimension')}
+          header={t('Size')}
         >
           <Stack>
             <Width />

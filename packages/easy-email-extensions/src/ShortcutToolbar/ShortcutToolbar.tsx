@@ -5,6 +5,7 @@ import { IconFont, Stack } from 'easy-email-editor';
 import React, { useRef } from 'react';
 import { BlocksPanel } from './components/BlocksPanel';
 import { DragIcon } from './components/DragIcon';
+import { iconLabelStyle, iconWrapperStyle } from './components/DragIcon/styles';
 
 export function ShortcutToolbar() {
   const blocksPanelRef = useRef<HTMLDivElement>(null);
@@ -54,21 +55,23 @@ export function ShortcutToolbar() {
         type={AdvancedType.SECTION}
       />
 
-      <IconFont
-        onClick={() => blocksPanelRef.current?.click()}
-        iconName='icon-more'
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 30,
-          height: 30,
-          borderRadius: '50%',
-          color: 'var(--color-text-2)',
-          boxShadow: '0 0 12px -3px var(--color-text-2)',
-          fontSize: 18,
-        }}
-      />
+      <div onClick={() => blocksPanelRef.current?.click()} style={{ ...iconWrapperStyle, cursor: 'pointer' }}>
+        <IconFont
+          iconName='icon-more'
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 30,
+            height: 30,
+            borderRadius: '50%',
+            color: 'var(--color-text-2)',
+            boxShadow: '0 0 12px -3px var(--color-text-2)',
+            fontSize: 18,
+          }}
+        />
+        <span style={iconLabelStyle}>More</span>
+      </div>
     </Stack>
   );
 }
