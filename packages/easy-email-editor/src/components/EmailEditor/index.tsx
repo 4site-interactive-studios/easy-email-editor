@@ -68,17 +68,6 @@ export const EmailEditor = () => {
             style={{ height: 'calc(100% - 50px)' }}
             tab={(
               <Stack spacing='tight'>
-                <IconFont iconName='icon-desktop' />
-              </Stack>
-            )}
-            key={ActiveTabKeys.PC}
-          >
-            <DesktopEmailPreview />
-          </TabPane>
-          <TabPane
-            style={{ height: 'calc(100% - 50px)' }}
-            tab={(
-              <Stack spacing='tight'>
                 <IconFont iconName='icon-mobile' />
               </Stack>
             )}
