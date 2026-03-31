@@ -112,19 +112,15 @@ export const SimpleLayout: React.FC<
   const [leftWidth, setLeftWidth] = useState(LEFT_DEFAULT);
   const [rightWidth, setRightWidth] = useState(RIGHT_DEFAULT);
 
-  // Auto-expand right panel when a block is focused
+  // Auto-expand right panel when a *different* block is focused
   const { focusIdx } = useFocusIdx();
-  const initialFocusRef = useRef(true);
+  const prevFocusIdxRef = useRef(focusIdx);
   useEffect(() => {
-    // Skip the initial render (page block auto-focused on load)
-    if (initialFocusRef.current) {
-      initialFocusRef.current = false;
-      return;
-    }
-    if (focusIdx && rightCollapsed) {
+    if (focusIdx && focusIdx !== prevFocusIdxRef.current) {
       setRightCollapsed(false);
     }
-  }, [focusIdx, rightCollapsed]);
+    prevFocusIdxRef.current = focusIdx;
+  }, [focusIdx]);
 
   const onResizeLeft = useCallback((delta: number) => {
     setLeftWidth(w => Math.max(LEFT_MIN + 1, Math.min(LEFT_MAX, w + delta)));
