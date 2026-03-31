@@ -72,16 +72,16 @@ export function RemoteCursors({
       const el = containerRefStable.current;
       if (!el) return;
       const rect = el.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      // Only send if mouse is within the editor area
-      if (x >= 0 && y >= 0 && x <= rect.width && y <= rect.height) {
-        onMouseMoveRef.current(x, y);
+      const px = e.clientX - rect.left;
+      const py = e.clientY - rect.top;
+      if (px >= 0 && py >= 0 && px <= rect.width && py <= rect.height) {
+        // Send as percentages (0-1) so position is independent of window size
+        onMouseMoveRef.current(px / rect.width, py / rect.height);
       }
     };
     document.addEventListener('mousemove', handler, { passive: true });
     return () => document.removeEventListener('mousemove', handler);
-  }, []); // Stable — refs handle changing values
+  }, []);
 
   const overlays: React.ReactNode[] = [];
 
@@ -252,43 +252,46 @@ export function RemoteCursors({
       {overlays}
 
       {/* Floating mouse cursors — hidden when user is typing */}
-      {showCursors && Array.from(remoteMousePositions.entries()).map(([userId, pos]) => {
-        if (userId === currentUserId) return null;
-        if (userModeRef.current.get(userId) === 'typing') return null;
-        const user = roomUsers.find(u => u.userId === userId);
-        if (!user) return null;
-        return (
-          <div
-            key={`mouse-${userId}`}
-            style={{
-              position: 'absolute',
-              left: pos.x,
-              top: pos.y,
-              pointerEvents: 'none',
-              zIndex: 9999,
-              transition: 'left 0.05s linear, top 0.05s linear',
-            }}
-          >
-            <CursorArrow color={user.color} />
+      {showCursors && editorContainerRef.current && (() => {
+        const rect = editorContainerRef.current!.getBoundingClientRect();
+        return Array.from(remoteMousePositions.entries()).map(([userId, pos]) => {
+          if (userId === currentUserId) return null;
+          if (userModeRef.current.get(userId) === 'typing') return null;
+          const user = roomUsers.find(u => u.userId === userId);
+          if (!user) return null;
+          return (
             <div
+              key={`mouse-${userId}`}
               style={{
-                marginLeft: 12,
-                marginTop: -2,
-                background: user.color,
-                color: '#fff',
-                fontSize: 10,
-                fontWeight: 600,
-                padding: '1px 5px',
-                borderRadius: 3,
-                whiteSpace: 'nowrap',
-                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                position: 'absolute',
+                left: pos.x * rect.width,
+                top: pos.y * rect.height,
+                pointerEvents: 'none',
+                zIndex: 9999,
+                transition: 'left 0.05s linear, top 0.05s linear',
               }}
             >
-              {user.emoji} {user.name}
+              <CursorArrow color={user.color} />
+              <div
+                style={{
+                  marginLeft: 12,
+                  marginTop: -2,
+                  background: user.color,
+                  color: '#fff',
+                  fontSize: 10,
+                  fontWeight: 600,
+                  padding: '1px 5px',
+                  borderRadius: 3,
+                  whiteSpace: 'nowrap',
+                  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                }}
+              >
+                {user.emoji} {user.name}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        });
+      })()}
 
       {/* Toggle button — bottom-right corner */}
       {roomUsers.length > 1 && (
