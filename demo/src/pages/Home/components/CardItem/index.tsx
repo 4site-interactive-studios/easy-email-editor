@@ -23,9 +23,10 @@ function placeholderColor(name: string): string {
 interface CardItemProps {
   data: IArticle;
   isBuiltIn?: boolean;
+  activeUsers?: Array<{ userId: string; name: string; color: string; emoji: string }>;
 }
 
-export function CardItem({ data, isBuiltIn }: CardItemProps) {
+export function CardItem({ data, isBuiltIn, activeUsers }: CardItemProps) {
   const dispatch = useDispatch();
   const history = useHistory();
   const [confirming, setConfirming] = useState(false);
@@ -110,6 +111,26 @@ export function CardItem({ data, isBuiltIn }: CardItemProps) {
           {isBuiltIn ? 'Template' : `Edited ${timeAgo(timestamp)}`}
         </div>
       </div>
+
+      {/* Active editors */}
+      {activeUsers && activeUsers.length > 0 && (
+        <div className='px-3.5 pb-1 flex items-center gap-1'>
+          {activeUsers.slice(0, 5).map(u => (
+            <span
+              key={u.userId}
+              title={`${u.name} is editing`}
+              className='inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] leading-none'
+              style={{ background: u.color }}
+            >
+              {u.emoji}
+            </span>
+          ))}
+          {activeUsers.length > 5 && (
+            <span className='text-[10px] text-gray-400 font-medium'>+{activeUsers.length - 5}</span>
+          )}
+          <span className='text-[10px] text-gray-400 ml-0.5'>editing</span>
+        </div>
+      )}
 
       {/* Actions */}
       <div className='px-3.5 pb-3 pt-2 flex items-center gap-1 border-t border-gray-100'>

@@ -30,6 +30,7 @@ export default function Home() {
   const list = useAppSelector('templateList');
   const [search, setSearch] = useState('');
   const [thumbs, setThumbs] = useState<Record<number, string>>(readThumbCache);
+  const [presence, setPresence] = useState<Record<string, any[]>>({});
 
   // Import MJML modal state
   const [showImportModal, setShowImportModal] = useState(false);
@@ -40,6 +41,21 @@ export default function Home() {
 
   useEffect(() => {
     dispatch(templateList.actions.fetch(undefined));
+  }, [dispatch]);
+
+  // Poll for presence (who's editing) and template list updates every 5s
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const res = await fetch('/api/presence');
+        if (res.ok) setPresence(await res.json());
+      } catch {}
+      // Re-fetch template list so titles/thumbnails update
+      dispatch(templateList.actions.fetch(undefined));
+    };
+    poll();
+    const interval = setInterval(poll, 5000);
+    return () => clearInterval(interval);
   }, [dispatch]);
 
   // Generate thumbnails for built-in templates that aren't cached yet
@@ -245,7 +261,7 @@ export default function Home() {
         ) : (
           <div className='flex flex-wrap gap-5 mb-2'>
             {filteredList.map(item => (
-              <CardItem data={item} key={item.article_id} />
+              <CardItem data={item} key={item.article_id} activeUsers={presence[String(item.article_id)]} />
             ))}
           </div>
         )}
@@ -269,6 +285,7 @@ export default function Home() {
                   }}
                   key={item.article_id}
                   isBuiltIn
+                  activeUsers={presence[String(item.article_id)]}
                 />
               ))}
             </div>
