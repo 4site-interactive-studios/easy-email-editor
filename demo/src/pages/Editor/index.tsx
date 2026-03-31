@@ -258,6 +258,21 @@ export default function Editor() {
     };
   }, []);
 
+  // ── Warn on browser close/refresh if there are pending unsaved changes ──
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      // Check if there are unsaved changes by comparing current content to last saved
+      if (!formApiRef.current) return;
+      const currentContent = JSON.stringify(formApiRef.current.getState().values.content);
+      if (currentContent !== lastSavedContentRef.current) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, []);
+
   // ── Initialize lastSavedContentRef when template loads ──
   useEffect(() => {
     if (templateData?.content) {
@@ -500,7 +515,7 @@ export default function Editor() {
             return (
               <>
                 <Prompt
-                  when={isDirty && !savedArticleId}
+                  when={isDirty}
                   message='You have unsaved changes. Are you sure you want to leave?'
                 />
 

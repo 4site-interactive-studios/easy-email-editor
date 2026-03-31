@@ -105,6 +105,9 @@ export const SimpleLayout: React.FC<
   const isNarrow = viewportWidth < 1280;
 
   const [collapsed, setCollapsed] = useState(() => !defaultShowLayer || isNarrow);
+  const [leftHidden, setLeftHidden] = useState(false);
+  const [leftPeeking, setLeftPeeking] = useState(false);
+  const leftPeekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [rightCollapsed, setRightCollapsed] = useState(() => isNarrow);
   const [leftWidth, setLeftWidth] = useState(LEFT_DEFAULT);
   const [rightWidth, setRightWidth] = useState(RIGHT_DEFAULT);
@@ -143,7 +146,7 @@ export const SimpleLayout: React.FC<
         }}
       >
         <Layout.Sider
-          style={{ paddingRight: 0, position: 'relative' }}
+          style={{ paddingRight: 0, position: 'relative', display: leftHidden ? 'none' : undefined }}
           collapsed={collapsed}
           collapsible
           trigger={null}
@@ -159,13 +162,20 @@ export const SimpleLayout: React.FC<
               <ShortcutToolbar />
               <Button
                 style={{
-                  marginTop: 30,
+                  marginTop: 20,
                   marginLeft: 'auto',
                   marginRight: 'auto',
                 }}
                 icon={collapsed ? <IconRight /> : <IconLeft />}
                 shape='round'
-                onClick={() => setCollapsed(v => !v)}
+                onClick={() => {
+                  if (collapsed) {
+                    // Already collapsed — hide entirely
+                    setLeftHidden(true);
+                  } else {
+                    setCollapsed(true);
+                  }
+                }}
               />
             </Card.Grid>
             <Card.Grid
@@ -191,7 +201,85 @@ export const SimpleLayout: React.FC<
           {!collapsed && <ResizeHandle side='left' onResize={onResizeLeft} />}
         </Layout.Sider>
 
-        <Layout style={{ height: containerHeight }}>{props.children}</Layout>
+        <Layout style={{ height: containerHeight, position: 'relative' }}>
+          {leftHidden && (
+            <>
+              {/* Hover zone on left edge — triggers flyout after 300ms */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: 0,
+                  width: 12,
+                  height: '100%',
+                  zIndex: 100,
+                  cursor: 'pointer',
+                }}
+                onMouseEnter={() => {
+                  leftPeekTimerRef.current = setTimeout(() => setLeftPeeking(true), 300);
+                }}
+                onMouseLeave={() => {
+                  if (leftPeekTimerRef.current) clearTimeout(leftPeekTimerRef.current);
+                }}
+                onClick={() => { setLeftHidden(false); setLeftPeeking(false); }}
+              >
+                {/* Visible tab indicator */}
+                <div style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  width: 12,
+                  height: 48,
+                  background: 'var(--selected-color, #1890ff)',
+                  borderRadius: '0 6px 6px 0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: 0.6,
+                  transition: 'opacity 0.15s',
+                }}>
+                  <IconRight style={{ color: '#fff', fontSize: 10 }} />
+                </div>
+              </div>
+
+              {/* Flyout sidebar on hover */}
+              {leftPeeking && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    width: 76,
+                    height: '100%',
+                    zIndex: 99,
+                    background: '#fff',
+                    boxShadow: '4px 0 16px rgba(0,0,0,0.15)',
+                    borderRight: '1px solid #e5e7eb',
+                    overflowY: 'auto',
+                    textAlign: 'center',
+                  }}
+                  onMouseLeave={() => setLeftPeeking(false)}
+                >
+                  <ShortcutToolbar />
+                  <Button
+                    style={{
+                      marginTop: 20,
+                      marginLeft: 'auto',
+                      marginRight: 'auto',
+                      fontSize: 11,
+                    }}
+                    size='small'
+                    onClick={() => { setLeftHidden(false); setLeftPeeking(false); }}
+                  >
+                    {t('Pin')}
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+          {props.children}
+        </Layout>
 
         <Layout.Sider
           style={{
