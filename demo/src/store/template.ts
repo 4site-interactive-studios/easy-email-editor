@@ -5,7 +5,7 @@ import { history } from '@demo/utils/history';
 import { IBlockData, BlockManager, BasicType, AdvancedType } from 'easy-email-core';
 import { IEmailTemplate } from 'easy-email-editor';
 import { getTemplate } from '@demo/config/getTemplate';
-import { localStorageTemplates } from '@demo/utils/local-storage-templates';
+import { api } from '@demo/utils/api';
 import { nowUnix } from '@demo/utils/time';
 
 export function getAdaptor(data: IArticle): IEmailTemplate {
@@ -34,7 +34,7 @@ export default createSliceState({
       try {
         let data = await getTemplate(id);
         if (!data) {
-          data = localStorageTemplates.getById(id);
+          data = await api.getById(id);
         }
         if (!data) {
           throw new Error('Template not found');
@@ -63,7 +63,7 @@ export default createSliceState({
         success: (id: number, data: IEmailTemplate) => void;
       },
     ) => {
-      const id = localStorageTemplates.generateId();
+      const id = api.generateId();
       const now = nowUnix();
       const articleData: IArticle = {
         article_id: id,
@@ -83,7 +83,7 @@ export default createSliceState({
         created_at: now,
         updated_at: now,
       };
-      localStorageTemplates.save(articleData);
+      await api.save(articleData);
       const adapted = getAdaptor(articleData);
       payload.success(id, adapted);
       return adapted;
@@ -97,12 +97,12 @@ export default createSliceState({
     ) => {
       let source = await getTemplate(payload.article.article_id);
       if (!source) {
-        source = localStorageTemplates.getById(payload.article.article_id);
+        source = await api.getById(payload.article.article_id);
       }
       if (!source) {
         throw new Error('Template not found');
       }
-      const id = localStorageTemplates.generateId();
+      const id = api.generateId();
       const now = nowUnix();
       const copy: IArticle = {
         article_id: id,
@@ -124,7 +124,7 @@ export default createSliceState({
         created_at: now,
         updated_at: now,
       };
-      localStorageTemplates.save(copy);
+      await api.save(copy);
       payload.success(id);
     },
     updateById: async (
@@ -142,7 +142,7 @@ export default createSliceState({
         return;
       }
 
-      const existing = localStorageTemplates.getById(payload.id);
+      const existing = await api.getById(payload.id);
       if (!existing) {
         Message.error('Template not found');
         return;
@@ -159,11 +159,11 @@ export default createSliceState({
         },
         updated_at: nowUnix(),
       };
-      localStorageTemplates.save(updated);
+      await api.save(updated);
       payload.success(payload.id);
     },
     removeById: async (state, payload: { id: number; success: () => void }) => {
-      localStorageTemplates.remove(payload.id);
+      await api.remove(payload.id);
       payload.success();
       Message.success('Removed successfully.');
     },
