@@ -153,7 +153,7 @@ const defaultCategories: ExtensionProps['categories'] = [
 
 // ─── Editor ────────────────────────────────────────────────────────────────────
 
-/** Renders inside EmailEditorProvider to sync focus ↔ collaboration cursor/lock. */
+/** Renders inside EmailEditorProvider to sync focus + text cursor ↔ collaboration. */
 function CollaborationSync({ collab }: { collab: ReturnType<typeof useCollaboration> }) {
   const { focusIdx } = useFocusIdx();
   const prevIdx = useRef('');
@@ -162,21 +162,59 @@ function CollaborationSync({ collab }: { collab: ReturnType<typeof useCollaborat
     if (!collab.connected) return;
     if (focusIdx === prevIdx.current) return;
 
-    // Unlock previous block
-    if (prevIdx.current) {
-      collab.unlockBlock(prevIdx.current);
-    }
-
-    // Lock + broadcast new focus
+    if (prevIdx.current) collab.unlockBlock(prevIdx.current);
     if (focusIdx) {
       collab.sendCursor(focusIdx);
       collab.lockBlock(focusIdx);
     } else {
       collab.sendCursor('');
     }
-
     prevIdx.current = focusIdx;
   }, [focusIdx, collab]);
+
+  // Track text cursor position within contenteditable (shadow DOM)
+  useEffect(() => {
+    if (!collab.connected) return;
+    const editorRoot = document.getElementById('VisualEditorEditMode');
+    const shadowRoot = editorRoot?.shadowRoot;
+    if (!shadowRoot) return;
+
+    const handleSelection = () => {
+      const sel = shadowRoot.getSelection ? (shadowRoot as any).getSelection() : document.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+      if (!range.collapsed) return; // Only track caret, not selections
+
+      // Find which contenteditable this is in
+      let node = range.startContainer as HTMLElement;
+      while (node && !node.getAttribute?.('data-content_editable-idx')) {
+        node = node.parentElement as HTMLElement;
+      }
+      if (!node) return;
+
+      const blockIdx = node.getAttribute('data-content_editable-idx');
+      if (!blockIdx) return;
+
+      // Calculate offset within the contenteditable's text content
+      const treeWalker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, null);
+      let offset = 0;
+      let nodeIndex = 0;
+      while (treeWalker.nextNode()) {
+        if (treeWalker.currentNode === range.startContainer) {
+          offset += range.startOffset;
+          break;
+        }
+        offset += (treeWalker.currentNode as Text).length;
+        nodeIndex++;
+      }
+
+      collab.sendTextCursor({ focusIdx: blockIdx, offset, nodeIndex });
+    };
+
+    // selectionchange fires on the document, not the shadow root
+    document.addEventListener('selectionchange', handleSelection);
+    return () => document.removeEventListener('selectionchange', handleSelection);
+  }, [collab]);
 
   return null;
 }
@@ -790,6 +828,7 @@ export default function Editor() {
                       remoteCursors={collab.remoteCursors}
                       lockedBlocks={collab.lockedBlocks}
                       remoteMousePositions={collab.remoteMousePositions}
+                      remoteTextCursors={collab.remoteTextCursors}
                       currentUserId={collab.currentUser.userId}
                       roomUsers={collab.roomUsers}
                       showCursors={showCursors}

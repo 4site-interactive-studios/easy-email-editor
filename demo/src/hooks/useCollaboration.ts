@@ -12,6 +12,12 @@ export interface MousePosition {
   y: number;
 }
 
+export interface TextCursorPosition {
+  focusIdx: string;
+  offset: number;
+  nodeIndex: number; // which text node within the contenteditable
+}
+
 export interface CollaborationState {
   connected: boolean;
   roomUsers: UserPresence[];
@@ -19,12 +25,14 @@ export interface CollaborationState {
   lockedBlocks: Map<string, UserPresence>;
   remoteCursors: Map<string, string>; // userId → focusIdx
   remoteMousePositions: Map<string, MousePosition>; // userId → {x, y}
+  remoteTextCursors: Map<string, TextCursorPosition>; // userId → text cursor
   codeModeProposal: { userId: string; userName: string } | null;
 }
 
 export interface CollaborationActions {
   sendCursor: (focusIdx: string) => void;
   sendMousePosition: (x: number, y: number) => void;
+  sendTextCursor: (pos: TextCursorPosition) => void;
   lockBlock: (blockIdx: string) => void;
   unlockBlock: (blockIdx: string) => void;
   sendContentChange: (patch: ContentPatch) => void;
@@ -49,6 +57,7 @@ export function useCollaboration(
   const [lockedBlocks, setLockedBlocks] = useState<Map<string, UserPresence>>(new Map());
   const [remoteCursors, setRemoteCursors] = useState<Map<string, string>>(new Map());
   const [remoteMousePositions, setRemoteMousePositions] = useState<Map<string, MousePosition>>(new Map());
+  const [remoteTextCursors, setRemoteTextCursors] = useState<Map<string, TextCursorPosition>>(new Map());
   const [codeModeProposal, setCodeModeProposal] = useState<{ userId: string; userName: string } | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -107,16 +116,9 @@ export function useCollaboration(
 
           case 'user-left':
             setRoomUsers(msg.users);
-            setRemoteCursors(prev => {
-              const next = new Map(prev);
-              next.delete(msg.userId);
-              return next;
-            });
-            setRemoteMousePositions(prev => {
-              const next = new Map(prev);
-              next.delete(msg.userId);
-              return next;
-            });
+            setRemoteCursors(prev => { const n = new Map(prev); n.delete(msg.userId); return n; });
+            setRemoteMousePositions(prev => { const n = new Map(prev); n.delete(msg.userId); return n; });
+            setRemoteTextCursors(prev => { const n = new Map(prev); n.delete(msg.userId); return n; });
             setLockedBlocks(prev => {
               const next = new Map(prev);
               for (const [blockIdx, u] of next) {
@@ -134,6 +136,14 @@ export function useCollaboration(
               } else {
                 next.delete(msg.userId);
               }
+              return next;
+            });
+            break;
+
+          case 'text-cursor-moved':
+            setRemoteTextCursors(prev => {
+              const next = new Map(prev);
+              next.set(msg.userId, { focusIdx: msg.focusIdx, offset: msg.offset, nodeIndex: msg.nodeIndex });
               return next;
             });
             break;
@@ -211,6 +221,10 @@ export function useCollaboration(
     send({ type: 'cursor', focusIdx });
   }, [send]);
 
+  const sendTextCursor = useCallback((pos: TextCursorPosition) => {
+    send({ type: 'text-cursor', focusIdx: pos.focusIdx, offset: pos.offset, nodeIndex: pos.nodeIndex });
+  }, [send]);
+
   const lastMouseRef = useRef({ x: 0, y: 0, t: 0 });
   const sendMousePosition = useCallback((x: number, y: number) => {
     // Throttle: only send if moved significantly or >50ms since last send
@@ -265,8 +279,10 @@ export function useCollaboration(
     lockedBlocks,
     remoteCursors,
     remoteMousePositions,
+    remoteTextCursors,
     codeModeProposal,
     sendCursor,
+    sendTextCursor,
     sendMousePosition,
     lockBlock,
     unlockBlock,
