@@ -62,21 +62,20 @@ export function RemoteCursors({
     prevMouseRef.current = remoteMousePositions;
   }
 
-  // Track local mouse position and broadcast (relative to editor container)
+  // Track mouse position relative to the email canvas (#easy-email-editor).
+  // This element is sidebar-independent — same position regardless of panel state.
   const onMouseMoveRef = useRef(onMouseMove);
   onMouseMoveRef.current = onMouseMove;
-  const containerRefStable = editorContainerRef;
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      const el = containerRefStable.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
+      const canvas = document.getElementById('easy-email-editor');
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
       const px = e.clientX - rect.left;
       const py = e.clientY - rect.top;
-      if (px >= 0 && py >= 0 && px <= rect.width && py <= rect.height) {
-        // Send as percentages (0-1) so position is independent of window size
-        onMouseMoveRef.current(px / rect.width, py / rect.height);
+      if (px >= -50 && py >= -50 && px <= rect.width + 50 && py <= rect.height + 50) {
+        onMouseMoveRef.current(px, py);
       }
     };
     document.addEventListener('mousemove', handler, { passive: true });
@@ -251,9 +250,18 @@ export function RemoteCursors({
     <>
       {overlays}
 
-      {/* Floating mouse cursors — hidden when user is typing */}
-      {showCursors && editorContainerRef.current && (() => {
-        const rect = editorContainerRef.current!.getBoundingClientRect();
+      {/* Floating mouse cursors — positioned relative to the email canvas */}
+      {showCursors && (() => {
+        const canvas = document.getElementById('easy-email-editor');
+        if (!canvas) return null;
+        const canvasRect = canvas.getBoundingClientRect();
+        const containerEl = editorContainerRef.current;
+        if (!containerEl) return null;
+        const containerRect = containerEl.getBoundingClientRect();
+        // Offset: canvas position within the container
+        const offsetX = canvasRect.left - containerRect.left;
+        const offsetY = canvasRect.top - containerRect.top;
+
         return Array.from(remoteMousePositions.entries()).map(([userId, pos]) => {
           if (userId === currentUserId) return null;
           if (userModeRef.current.get(userId) === 'typing') return null;
@@ -264,11 +272,11 @@ export function RemoteCursors({
               key={`mouse-${userId}`}
               style={{
                 position: 'absolute',
-                left: pos.x * rect.width,
-                top: pos.y * rect.height,
+                left: offsetX + pos.x,
+                top: offsetY + pos.y,
                 pointerEvents: 'none',
                 zIndex: 9999,
-                transition: 'left 0.05s linear, top 0.05s linear',
+                transition: 'left 0.08s linear, top 0.08s linear',
               }}
             >
               <CursorArrow color={user.color} />
