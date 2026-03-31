@@ -1,5 +1,5 @@
 import React from 'react';
-import { AdvancedType } from 'easy-email-core';
+import { AdvancedType, BasicType } from 'easy-email-core';
 import { Stack, TextStyle } from 'easy-email-editor';
 
 import { TextBlockItem } from './TextBlockItem';
@@ -16,6 +16,8 @@ import { WrapperBlockItem } from './WrapperBlockItem';
 import { SectionBlockItem } from './SectionBlockItem';
 import { GroupBlockItem } from './GroupBlockItem';
 import { ColumnBlockItem } from './ColumnBlockItem';
+import { RawBlockItem } from './RawBlockItem';
+import { TableBlockItem } from './TableBlockItem';
 
 export const defaultCategories = [
   {
@@ -146,6 +148,30 @@ export const defaultCategories = [
           );
         },
         component: SocialBlockItem,
+      },
+      {
+        type: AdvancedType.TABLE,
+        get title() {
+          return t('Table');
+        },
+        get description() {
+          return t(
+            'Displays a data table using raw HTML. Useful for structured content like pricing, schedules, or donation summaries.',
+          );
+        },
+        component: TableBlockItem,
+      },
+      {
+        type: BasicType.RAW,
+        get title() {
+          return t('Raw HTML');
+        },
+        get description() {
+          return t(
+            'Inserts raw HTML directly into the email without MJML processing. Use for custom code, conditional logic, or advanced formatting.',
+          );
+        },
+        component: RawBlockItem,
       },
     ],
   },

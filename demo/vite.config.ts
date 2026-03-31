@@ -2,6 +2,8 @@ import { defineConfig } from 'vite';
 import reactRefresh from '@vitejs/plugin-react-refresh';
 import path from 'path';
 import { injectHtml } from 'vite-plugin-html';
+import tailwindcss from 'tailwindcss';
+import autoprefixer from 'autoprefixer';
 
 export default defineConfig({
   server: {
@@ -67,6 +69,12 @@ export default defineConfig({
   css: {
     modules: {
       localsConvention: 'dashes',
+    },
+    postcss: {
+      plugins: [
+        tailwindcss({ config: path.resolve(__dirname, 'tailwind.config.cjs') }),
+        autoprefixer(),
+      ],
     },
     preprocessorOptions: {
       scss: {},

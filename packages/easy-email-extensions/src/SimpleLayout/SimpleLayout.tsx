@@ -1,7 +1,7 @@
 import { ShortcutToolbar } from '../ShortcutToolbar';
 import { Button, Card, ConfigProvider, Layout, Tabs } from '@arco-design/web-react';
-import { useEditorProps } from 'easy-email-editor';
-import React, { useState } from 'react';
+import { useEditorProps, useFocusIdx } from 'easy-email-editor';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useWindowSize } from 'react-use';
 import { SourceCodePanel } from '../SourceCodePanel';
 import { AttributePanel } from '../AttributePanel';
@@ -11,6 +11,84 @@ import styles from './index.module.scss';
 import enUS from '@arco-design/web-react/es/locale/en-US';
 import { MergeTagBadgePrompt } from '@extensions/MergeTagBadgePrompt';
 import { IconLeft, IconRight } from '@arco-design/web-react/icon';
+
+// ─── Resize handle ─────────────────────────────────────────────────────────────
+
+function ResizeHandle({ side, onResize }: {
+  side: 'left' | 'right';
+  onResize: (delta: number) => void;
+}) {
+  const dragging = useRef(false);
+  const lastX = useRef(0);
+
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    dragging.current = true;
+    lastX.current = e.clientX;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!dragging.current) return;
+      const delta = ev.clientX - lastX.current;
+      lastX.current = ev.clientX;
+      // For the left panel, dragging right = wider (positive delta)
+      // For the right panel, dragging left = wider (negative delta → invert)
+      onResize(side === 'left' ? delta : -delta);
+    };
+
+    const onMouseUp = () => {
+      dragging.current = false;
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [onResize, side]);
+
+  return (
+    <div
+      onMouseDown={onMouseDown}
+      style={{
+        position: 'absolute',
+        top: 0,
+        [side === 'left' ? 'right' : 'left']: -3,
+        width: 6,
+        height: '100%',
+        cursor: 'col-resize',
+        zIndex: 20,
+      }}
+    >
+      {/* Visible line on hover */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 2,
+          width: 2,
+          height: '100%',
+          borderRadius: 1,
+          transition: 'opacity 0.15s',
+          opacity: 0,
+          backgroundColor: 'var(--selected-color, #1890ff)',
+        }}
+        className={styles.resizeHandleLine}
+      />
+    </div>
+  );
+}
+
+// ─── SimpleLayout ──────────────────────────────────────────────────────────────
+
+const LEFT_MIN = 76;
+const LEFT_DEFAULT = 316;
+const LEFT_MAX = 480;
+const RIGHT_MIN = 260;
+const RIGHT_DEFAULT = 350;
+const RIGHT_MAX = 500;
 
 export const SimpleLayout: React.FC<
   {
@@ -28,6 +106,30 @@ export const SimpleLayout: React.FC<
 
   const [collapsed, setCollapsed] = useState(() => !defaultShowLayer || isNarrow);
   const [rightCollapsed, setRightCollapsed] = useState(() => isNarrow);
+  const [leftWidth, setLeftWidth] = useState(LEFT_DEFAULT);
+  const [rightWidth, setRightWidth] = useState(RIGHT_DEFAULT);
+
+  // Auto-expand right panel when a block is focused
+  const { focusIdx } = useFocusIdx();
+  const initialFocusRef = useRef(true);
+  useEffect(() => {
+    // Skip the initial render (page block auto-focused on load)
+    if (initialFocusRef.current) {
+      initialFocusRef.current = false;
+      return;
+    }
+    if (focusIdx && rightCollapsed) {
+      setRightCollapsed(false);
+    }
+  }, [focusIdx, rightCollapsed]);
+
+  const onResizeLeft = useCallback((delta: number) => {
+    setLeftWidth(w => Math.max(LEFT_MIN + 1, Math.min(LEFT_MAX, w + delta)));
+  }, []);
+
+  const onResizeRight = useCallback((delta: number) => {
+    setRightWidth(w => Math.max(RIGHT_MIN, Math.min(RIGHT_MAX, w + delta)));
+  }, []);
 
   return (
     <ConfigProvider locale={enUS}>
@@ -41,13 +143,13 @@ export const SimpleLayout: React.FC<
         }}
       >
         <Layout.Sider
-          style={{ paddingRight: 0 }}
+          style={{ paddingRight: 0, position: 'relative' }}
           collapsed={collapsed}
           collapsible
           trigger={null}
           breakpoint='xl'
           collapsedWidth={76}
-          width={316}
+          width={leftWidth}
         >
           <Card
             bodyStyle={{ padding: 0 }}
@@ -86,6 +188,7 @@ export const SimpleLayout: React.FC<
               </Card>
             </Card.Grid>
           </Card>
+          {!collapsed && <ResizeHandle side='left' onResize={onResizeLeft} />}
         </Layout.Sider>
 
         <Layout style={{ height: containerHeight }}>{props.children}</Layout>
@@ -93,10 +196,9 @@ export const SimpleLayout: React.FC<
         <Layout.Sider
           style={{
             height: containerHeight,
-            minWidth: rightCollapsed ? 32 : 300,
-            maxWidth: rightCollapsed ? 32 : 350,
-            width: rightCollapsed ? 32 : 350,
-            transition: 'all 0.2s',
+            minWidth: rightCollapsed ? 32 : RIGHT_MIN,
+            maxWidth: rightCollapsed ? 32 : RIGHT_MAX,
+            width: rightCollapsed ? 32 : rightWidth,
             overflow: 'visible',
             position: 'relative',
           }}
@@ -120,44 +222,47 @@ export const SimpleLayout: React.FC<
             icon={rightCollapsed ? <IconLeft /> : <IconRight />}
             onClick={() => setRightCollapsed(v => !v)}
           />
-          {!rightCollapsed && (
-            <Card
-              size='small'
-              id='rightSide'
-              style={{
-                maxHeight: '100%',
-                height: '100%',
-                borderLeft: 'none',
-              }}
-              bodyStyle={{ padding: 0 }}
-              className={styles.customScrollBarV2}
-            >
-              <Tabs className={styles.layoutTabs}>
+          {!rightCollapsed && <ResizeHandle side='right' onResize={onResizeRight} />}
+          {/* Always render AttributePanel so RichTextField stays mounted
+              and listens for inline contenteditable edits in the shadow DOM.
+              Hide visually when collapsed, but never unmount. */}
+          <Card
+            size='small'
+            id='rightSide'
+            style={{
+              maxHeight: '100%',
+              height: '100%',
+              borderLeft: 'none',
+              display: rightCollapsed ? 'none' : undefined,
+            }}
+            bodyStyle={{ padding: 0 }}
+            className={styles.customScrollBarV2}
+          >
+            <Tabs className={styles.layoutTabs}>
+              <Tabs.TabPane
+                title={
+                  <div style={{ height: 31, lineHeight: '31px' }}>
+                    {t('Configuration')}
+                  </div>
+                }
+              >
+                <AttributePanel />
+              </Tabs.TabPane>
+              {showSourceCode && (
                 <Tabs.TabPane
+                  destroyOnHide
+                  key='Source code'
                   title={
                     <div style={{ height: 31, lineHeight: '31px' }}>
-                      {t('Configuration')}
+                      {t('Source code')}
                     </div>
                   }
                 >
-                  <AttributePanel />
+                  <SourceCodePanel jsonReadOnly={jsonReadOnly} mjmlReadOnly={mjmlReadOnly} />
                 </Tabs.TabPane>
-                {showSourceCode && (
-                  <Tabs.TabPane
-                    destroyOnHide
-                    key='Source code'
-                    title={
-                      <div style={{ height: 31, lineHeight: '31px' }}>
-                        {t('Source code')}
-                      </div>
-                    }
-                  >
-                    <SourceCodePanel jsonReadOnly={jsonReadOnly} mjmlReadOnly={mjmlReadOnly} />
-                  </Tabs.TabPane>
-                )}
-              </Tabs>
-            </Card>
-          )}
+              )}
+            </Tabs>
+          </Card>
         </Layout.Sider>
 
         <InteractivePrompt />

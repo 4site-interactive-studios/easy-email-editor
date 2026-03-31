@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   DATA_ATTRIBUTE_DROP_CONTAINER,
   IconFont,
@@ -28,7 +28,7 @@ import { ContextMenu } from './components/ContextMenu';
 import { classnames } from '@extensions/utils/classnames';
 import { getDirectionFormDropPosition, useAvatarWrapperDrop } from './hooks/useAvatarWrapperDrop';
 import { getIconNameByBlockType } from '@extensions/utils/getIconNameByBlockType';
-import { Space } from '@arco-design/web-react';
+import { Space, Switch } from '@arco-design/web-react';
 import { getBlockTitle } from '@extensions/utils/getBlockTitle';
 
 export interface IBlockDataWithId extends IBlockData {
@@ -59,6 +59,8 @@ export function BlockLayer(props: BlockLayerProps) {
     left: number;
     top: number;
   } | null>(null);
+
+  const [focusOnly, setFocusOnly] = useState(true);
 
   const onToggleVisible = useCallback(
     ({ id }: IBlockDataWithId, e: React.MouseEvent) => {
@@ -118,7 +120,7 @@ export function BlockLayer(props: BlockLayerProps) {
     [onToggleVisible, propsRenderTitle],
   );
 
-  const treeData = useMemo(() => {
+  const fullTreeData = useMemo(() => {
     const copyData = cloneDeep(pageData) as IBlockDataWithId;
     const loop = (
       item: IBlockDataWithId,
@@ -134,6 +136,38 @@ export function BlockLayer(props: BlockLayerProps) {
 
     return [copyData];
   }, [pageData]);
+
+  const treeData = useMemo(() => {
+    if (!focusOnly || !focusIdx) return fullTreeData;
+
+    const findNode = (node: IBlockDataWithId, targetId: string): IBlockDataWithId | null => {
+      if (node.id === targetId) return node;
+      for (const child of node.children) {
+        const found = findNode(child, targetId);
+        if (found) return found;
+      }
+      return null;
+    };
+
+    const root = fullTreeData[0];
+    if (!root) return fullTreeData;
+
+    const focusedNode = findNode(root, focusIdx);
+    if (!focusedNode) return fullTreeData;
+
+    // Walk up to the nearest wrapper/container (or page if none)
+    const containerTypes = new Set([
+      BasicType.WRAPPER, BasicType.PAGE,
+      'advanced_wrapper',
+    ]);
+
+    let container: IBlockDataWithId = focusedNode;
+    while (container.parent && !containerTypes.has(container.type)) {
+      container = container.parent;
+    }
+
+    return [container];
+  }, [fullTreeData, focusOnly, focusIdx]);
 
   const onSelect = useCallback(
     (selectedId: string) => {
@@ -249,6 +283,19 @@ export function BlockLayer(props: BlockLayerProps) {
     return keys;
   }, [focusIdx]);
 
+  // Scroll the focused tree node into view (centered) within the sidebar
+  useEffect(() => {
+    if (!focusIdx) return;
+    // Delay to let the tree re-render with new treeData/expandedKeys
+    const timer = setTimeout(() => {
+      const node = document.querySelector(`[data-tree-idx="${focusIdx}"]`);
+      if (node) {
+        node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [focusIdx]);
+
   return (
     <div
       ref={setBlockLayerRef}
@@ -257,6 +304,22 @@ export function BlockLayer(props: BlockLayerProps) {
         [DATA_ATTRIBUTE_DROP_CONTAINER]: 'true',
       }}
     >
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '4px 12px 6px',
+        fontSize: 12,
+        color: '#86909c',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      }}>
+        <span>{t('Selected only')}</span>
+        <Switch
+          size='small'
+          checked={focusOnly}
+          onChange={setFocusOnly}
+        />
+      </div>
       <BlockTree<IBlockDataWithId>
         selectedKeys={selectedKeys}
         expandedKeys={expandedKeys}

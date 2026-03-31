@@ -1,9 +1,4 @@
 import React from 'react';
-import { Layout, Menu, Breadcrumb } from '@arco-design/web-react';
-import { Stack } from '../Stack';
-
-const { SubMenu } = Menu;
-const { Header, Content, Sider } = Layout;
 
 interface FrameProps {
   title: string;
@@ -19,65 +14,41 @@ export default function Frame({
   breadcrumb,
 }: FrameProps) {
   return (
-    <Layout>
-      <Header style={{ padding: '0 20px', backgroundColor: '#001529' }}>
-        <Stack
-          distribution='equalSpacing'
-          alignment='center'
-        >
-          <h1 style={{ color: 'white', margin: '15px 0' }}>MJML Editor</h1>
-        </Stack>
-      </Header>
+    <div className='min-h-screen flex flex-col bg-gray-50'>
+      {/* Header */}
+      <header className='bg-gray-900 px-5 py-0 flex items-center h-[60px] shrink-0'>
+        <h1 className='text-white text-lg font-semibold m-0'>MJML Editor</h1>
+      </header>
 
-      <Layout>
-        <Sider width={200}>
-          <Menu
-            defaultSelectedKeys={['1']}
-            defaultOpenKeys={['sub1']}
-            style={{ height: '100%', borderRight: 0 }}
-          >
-            <SubMenu
-              key='sub1'
-              title='Templates'
+      <div className='flex flex-1 overflow-hidden'>
+        {/* Sidebar */}
+        <aside className='w-[200px] bg-white border-r border-gray-200 shrink-0 hidden md:block'>
+          <nav className='py-2'>
+            <a
+              href='/'
+              className='block px-6 py-2 text-sm font-medium text-blue-600 bg-blue-50 border-r-2 border-blue-600'
             >
-              <Menu.Item key='1'>Templates</Menu.Item>
-            </SubMenu>
-          </Menu>
-        </Sider>
-        <Layout style={{ padding: 24 }}>
-          <Stack vertical>
-            {breadcrumb && (
-              <Breadcrumb>
-                <Breadcrumb.Item>{breadcrumb}</Breadcrumb.Item>
-              </Breadcrumb>
-            )}
+              Templates
+            </a>
+          </nav>
+        </aside>
 
-            <Stack
-              distribution='equalSpacing'
-              alignment='center'
-            >
-              <Stack.Item>
-                <h2>
-                  <strong>{title}</strong>
-                </h2>
-              </Stack.Item>
-              <Stack.Item>{primaryAction}</Stack.Item>
-            </Stack>
+        {/* Main content */}
+        <main className='flex-1 p-6 overflow-auto'>
+          {breadcrumb && (
+            <div className='text-sm text-gray-500 mb-2'>{breadcrumb}</div>
+          )}
 
-            <Stack.Item>
-              <Content
-                style={{
-                  padding: 24,
-                  margin: 0,
-                  backgroundColor: '#fff',
-                }}
-              >
-                {children}
-              </Content>
-            </Stack.Item>
-          </Stack>
-        </Layout>
-      </Layout>
-    </Layout>
+          <div className='flex items-center justify-between mb-5'>
+            <h2 className='text-xl font-bold text-gray-900 m-0'>{title}</h2>
+            {primaryAction}
+          </div>
+
+          <div className='bg-white rounded-lg p-6 shadow-sm'>
+            {children}
+          </div>
+        </main>
+      </div>
+    </div>
   );
 }

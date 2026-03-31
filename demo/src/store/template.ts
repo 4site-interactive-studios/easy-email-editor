@@ -6,6 +6,7 @@ import { IBlockData, BlockManager, BasicType, AdvancedType } from 'easy-email-co
 import { IEmailTemplate } from 'easy-email-editor';
 import { getTemplate } from '@demo/config/getTemplate';
 import { localStorageTemplates } from '@demo/utils/local-storage-templates';
+import { nowUnix } from '@demo/utils/time';
 
 export function getAdaptor(data: IArticle): IEmailTemplate {
   const content = JSON.parse(data.content.content) as IBlockData;
@@ -15,10 +16,6 @@ export function getAdaptor(data: IArticle): IEmailTemplate {
     subject: data.title,
     subTitle: data.summary,
   };
-}
-
-function nowUnix(): number {
-  return Math.floor(Date.now() / 1000);
 }
 
 export default createSliceState({
@@ -62,6 +59,7 @@ export default createSliceState({
       payload: {
         template: IEmailTemplate;
         name: string;
+        picture?: string;
         success: (id: number, data: IEmailTemplate) => void;
       },
     ) => {
@@ -71,7 +69,7 @@ export default createSliceState({
         article_id: id,
         title: payload.name,
         summary: payload.template.subTitle || '',
-        picture: '',
+        picture: payload.picture || '',
         content: {
           article_id: id,
           content: JSON.stringify(payload.template.content),
@@ -134,6 +132,7 @@ export default createSliceState({
       payload: {
         id: number;
         template: IEmailTemplate;
+        picture?: string;
         success: (templateId: number) => void;
       },
     ) => {
@@ -153,6 +152,7 @@ export default createSliceState({
         ...existing,
         title: payload.template.subject || existing.title,
         summary: payload.template.subTitle || existing.summary,
+        picture: payload.picture || existing.picture,
         content: {
           article_id: payload.id,
           content: JSON.stringify(payload.template.content),

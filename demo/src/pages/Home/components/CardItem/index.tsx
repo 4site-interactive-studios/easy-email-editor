@@ -1,13 +1,12 @@
 import { IArticle } from '@demo/services/article';
-import React, { useCallback } from 'react';
-import { IconEdit, IconDelete, IconCopy } from '@arco-design/web-react/icon';
-import dayjs from 'dayjs';
-import styles from './index.module.scss';
-import { Button, Popconfirm, Space } from '@arco-design/web-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Pencil, Trash2, Copy } from 'lucide-react';
+import { timeAgo } from '@demo/utils/time';
 import { useHistory } from 'react-router-dom';
 import template from '@demo/store/template';
 import { useDispatch } from 'react-redux';
 import templateList from '@demo/store/templateList';
+import { revisionStore } from '@demo/utils/revisions';
 import { getLoadingByKey, useLoading } from '@demo/hooks/useLoading';
 import { Loading } from '@demo/components/loading';
 
@@ -20,14 +19,6 @@ function placeholderColor(name: string): string {
   return PLACEHOLDER_COLORS[(name.charCodeAt(0) || 0) % PLACEHOLDER_COLORS.length];
 }
 
-function timeAgo(unix: number): string {
-  const seconds = Math.floor(Date.now() / 1000) - unix;
-  if (seconds < 60) return 'Just now';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
-  return dayjs(unix * 1000).format('MMM D, YYYY');
-}
 
 interface CardItemProps {
   data: IArticle;
@@ -37,11 +28,19 @@ interface CardItemProps {
 export function CardItem({ data, isBuiltIn }: CardItemProps) {
   const dispatch = useDispatch();
   const history = useHistory();
+  const [confirming, setConfirming] = useState(false);
 
   const loading = useLoading([
     getLoadingByKey(template.loadings.duplicate, data.article_id),
     getLoadingByKey(template.loadings.removeById, data.article_id),
   ]);
+
+  // Auto-cancel delete confirmation after 3 seconds
+  useEffect(() => {
+    if (!confirming) return;
+    const t = setTimeout(() => setConfirming(false), 3000);
+    return () => clearTimeout(t);
+  }, [confirming]);
 
   const onDelete = useCallback(() => {
     dispatch(
@@ -49,6 +48,7 @@ export function CardItem({ data, isBuiltIn }: CardItemProps) {
         id: data.article_id,
         _actionKey: data.article_id,
         success() {
+          revisionStore.clear(data.article_id);
           dispatch(templateList.actions.fetch(undefined));
         },
       }),
@@ -77,65 +77,86 @@ export function CardItem({ data, isBuiltIn }: CardItemProps) {
   const timestamp = data.updated_at || data.created_at;
 
   return (
-    <div className={styles.card}>
-      {/* Thumbnail area */}
-      <div className={styles.thumbnail}>
+    <div className='w-[220px] rounded-lg bg-white shadow-sm overflow-hidden flex flex-col transition-all hover:shadow-md hover:-translate-y-0.5 border border-gray-100'>
+      {/* Thumbnail */}
+      <div className='h-[150px] overflow-hidden bg-gray-100 shrink-0'>
         {hasThumbnail ? (
-          <img src={data.picture} alt={data.title} />
+          <img
+            src={data.picture}
+            alt={data.title}
+            className='w-full h-full object-cover object-top block'
+          />
         ) : (
-          <div className={styles.placeholder} style={{ background: bg }}>
-            <span>{initial}</span>
+          <div
+            className='w-full h-full flex items-center justify-center'
+            style={{ background: bg }}
+          >
+            <span className='text-6xl font-bold text-white/85 leading-none select-none'>
+              {initial}
+            </span>
           </div>
         )}
       </div>
 
-      {/* Card body */}
-      <div className={styles.body}>
-        <div className={styles.name} title={data.title}>
+      {/* Body */}
+      <div className='px-3.5 pt-3 pb-2 flex-1 min-w-0'>
+        <div
+          className='font-semibold text-sm text-gray-900 truncate leading-snug'
+          title={data.title}
+        >
           {data.title}
         </div>
-        <div className={styles.meta}>
+        <div className='text-xs text-gray-400 mt-0.5'>
           {isBuiltIn ? 'Template' : `Edited ${timeAgo(timestamp)}`}
         </div>
       </div>
 
       {/* Actions */}
-      <div className={styles.actions}>
+      <div className='px-3.5 pb-3 pt-2 flex items-center gap-1 border-t border-gray-100'>
         {loading ? (
           <Loading loading color='#666' />
+        ) : confirming ? (
+          <>
+            <span className='text-xs text-red-600 font-medium mr-auto'>Delete?</span>
+            <button
+              className='px-2 py-1 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700 transition-colors'
+              onClick={onDelete}
+            >
+              Yes
+            </button>
+            <button
+              className='px-2 py-1 text-xs font-medium text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors'
+              onClick={() => setConfirming(false)}
+            >
+              No
+            </button>
+          </>
         ) : (
-          <Space size='mini'>
-            <Button
-              size='small'
-              type='primary'
-              icon={<IconEdit />}
+          <>
+            <button
+              className='inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors'
               onClick={onEdit}
             >
+              <Pencil size={12} />
               {isBuiltIn ? 'Open' : 'Edit'}
-            </Button>
-            <Button
-              size='small'
-              icon={<IconCopy />}
+            </button>
+            <button
+              className='p-1 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100 transition-colors'
               title='Duplicate'
               onClick={onDuplicate}
-            />
+            >
+              <Copy size={14} />
+            </button>
             {!isBuiltIn && (
-              <Popconfirm
-                title='Delete this email?'
-                onConfirm={onDelete}
-                okText='Delete'
-                okButtonProps={{ status: 'danger' }}
-                cancelText='Cancel'
+              <button
+                className='p-1 text-gray-400 hover:text-red-500 rounded hover:bg-red-50 transition-colors'
+                title='Delete'
+                onClick={() => setConfirming(true)}
               >
-                <Button
-                  size='small'
-                  status='danger'
-                  icon={<IconDelete />}
-                  title='Delete'
-                />
-              </Popconfirm>
+                <Trash2 size={14} />
+              </button>
             )}
-          </Space>
+          </>
         )}
       </div>
     </div>

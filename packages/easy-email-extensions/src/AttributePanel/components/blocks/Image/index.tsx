@@ -46,7 +46,9 @@ export function Image() {
     const img = new window.Image();
     img.onload = () => {
       form.change(`${focusIdx}.attributes.width`, `${img.naturalWidth}px`);
-      form.change(`${focusIdx}.attributes.height`, `${img.naturalHeight}px`);
+      // Keep height auto so the aspect ratio is preserved when the
+      // container is narrower than the intrinsic width.
+      form.change(`${focusIdx}.attributes.height`, 'auto');
     };
     img.src = url;
   }, [form, focusIdx]);

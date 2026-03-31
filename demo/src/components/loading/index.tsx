@@ -1,16 +1,13 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { IconLoading } from '@arco-design/web-react/icon';
+import { Loader2 } from 'lucide-react';
 
 type LoadingProps = {
   loading: boolean;
   children?: React.ReactNode;
   color?: string;
 };
-export function Loading({
-  loading,
-  children,
-  color = '#1890ff',
-}: LoadingProps) {
+
+export function Loading({ loading, children, color = '#3b82f6' }: LoadingProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [state, setState] = useState({
     width: 0,
@@ -38,15 +35,14 @@ export function Loading({
       {loading ? (
         <div
           ref={ref}
-          style={{
-            height: state.height,
-            width: state.width,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
+          className='flex items-center justify-center'
+          style={{ height: state.height, width: state.width }}
         >
-          <IconLoading style={{ fontSize: state.fontSize, color }} />
+          <Loader2
+            className='animate-spin'
+            style={{ color }}
+            size={state.fontSize}
+          />
         </div>
       ) : (
         children
