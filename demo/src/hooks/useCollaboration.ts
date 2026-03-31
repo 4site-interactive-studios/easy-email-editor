@@ -99,6 +99,10 @@ export function useCollaboration(
         switch (msg.type) {
           case 'user-joined':
             setRoomUsers(msg.users);
+            // If we just joined and the room is in code mode, enter it
+            if (msg.mode === 'code') {
+              onCodeModeEntered?.();
+            }
             break;
 
           case 'user-left':

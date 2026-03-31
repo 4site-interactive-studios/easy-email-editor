@@ -213,6 +213,18 @@ const httpServer = createServer(async (req, res) => {
       return json(res, { ok: true });
     }
 
+    // ── Presence (who's editing which templates) ──
+    if (path === '/api/presence' && method === 'GET') {
+      const presence = {};
+      for (const [roomId, clients] of rooms) {
+        const users = Array.from(clients).map(c => c.user);
+        if (users.length > 0) {
+          presence[roomId] = users;
+        }
+      }
+      return json(res, presence);
+    }
+
     // Not found
     json(res, { error: 'Not found' }, 404);
   } catch (err) {
@@ -270,6 +282,7 @@ function getUserList(roomId) {
 }
 
 const codeModeState = new Map();
+const roomModes = new Map(); // roomId → 'visual' | 'code'
 
 wss.on('connection', (ws) => {
   ws.on('message', (raw) => {
@@ -281,11 +294,17 @@ wss.on('connection', (ws) => {
         const room = getRoom(msg.roomId);
         const client = { ws, user: msg.user, locks: new Set(), focusIdx: '' };
         room.add(client);
-        ws.send(JSON.stringify({ type: 'user-joined', user: msg.user, users: getUserList(msg.roomId) }));
+        const currentMode = roomModes.get(msg.roomId) || 'visual';
+        ws.send(JSON.stringify({ type: 'user-joined', user: msg.user, users: getUserList(msg.roomId), mode: currentMode }));
         broadcastToRoom(msg.roomId, { type: 'user-joined', user: msg.user, users: getUserList(msg.roomId) }, ws);
+        // Send existing locks and cursor positions
         for (const c of room) {
+          if (c === client) continue;
           for (const blockIdx of c.locks) {
             ws.send(JSON.stringify({ type: 'block-locked', userId: c.user.userId, blockIdx, user: c.user }));
+          }
+          if (c.focusIdx) {
+            ws.send(JSON.stringify({ type: 'cursor-moved', userId: c.user.userId, focusIdx: c.focusIdx }));
           }
         }
         break;
@@ -337,6 +356,7 @@ wss.on('connection', (ws) => {
         const room = found.room;
         const otherCount = room.size - 1;
         if (otherCount === 0) {
+          roomModes.set(found.roomId, 'code');
           ws.send(JSON.stringify({ type: 'code-mode-entered' }));
         } else {
           codeModeState.set(found.roomId, { proposer: found.client.user, proposerWs: ws, confirmations: new Set(), totalNeeded: otherCount });
@@ -352,6 +372,7 @@ wss.on('connection', (ws) => {
         state.confirmations.add(found.client.user.userId);
         if (state.confirmations.size >= state.totalNeeded) {
           for (const c of found.room) c.locks.clear();
+          roomModes.set(found.roomId, 'code');
           broadcastToAll(found.roomId, { type: 'code-mode-entered' });
           codeModeState.delete(found.roomId);
         }
@@ -372,6 +393,7 @@ wss.on('connection', (ws) => {
       case 'code-mode-exit': {
         const found = findClient(ws);
         if (!found) return;
+        roomModes.set(found.roomId, 'visual');
         broadcastToAll(found.roomId, { type: 'code-mode-exited', content: msg.content, userId: found.client.user.userId });
         break;
       }
@@ -391,7 +413,7 @@ function handleDisconnect(ws) {
   }
   room.delete(client);
   broadcastToRoom(roomId, { type: 'user-left', userId: client.user.userId, users: getUserList(roomId) });
-  if (room.size === 0) { rooms.delete(roomId); codeModeState.delete(roomId); }
+  if (room.size === 0) { rooms.delete(roomId); codeModeState.delete(roomId); roomModes.delete(roomId); }
   const state = codeModeState.get(roomId);
   if (state && state.proposer.userId === client.user.userId) {
     broadcastToAll(roomId, { type: 'code-mode-cancelled' });
