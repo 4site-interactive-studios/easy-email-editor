@@ -25,9 +25,14 @@ import { IArticle } from '@demo/services/article';
 import { FormApi } from 'final-form';
 import { nowUnix, timeAgo } from '@demo/utils/time';
 import { downloadFile } from '@demo/utils/download';
+import { useCollaboration, ContentPatch } from '@demo/hooks/useCollaboration';
+import { AvatarBar } from '@demo/components/AvatarBar';
+import { getUserIdentity } from '@demo/utils/user-identity';
+import { RemoteCursors } from '@demo/components/RemoteCursors';
 
 import {
   EmailEditor,
+  useFocusIdx,
   EmailEditorProvider,
   IEmailTemplate,
 } from 'easy-email-editor';
@@ -150,6 +155,34 @@ const defaultCategories: ExtensionProps['categories'] = [
 
 // ─── Editor ────────────────────────────────────────────────────────────────────
 
+/** Renders inside EmailEditorProvider to sync focus ↔ collaboration cursor/lock. */
+function CollaborationSync({ collab }: { collab: ReturnType<typeof useCollaboration> }) {
+  const { focusIdx } = useFocusIdx();
+  const prevIdx = useRef('');
+
+  useEffect(() => {
+    if (!collab.connected) return;
+    if (focusIdx === prevIdx.current) return;
+
+    // Unlock previous block
+    if (prevIdx.current) {
+      collab.unlockBlock(prevIdx.current);
+    }
+
+    // Lock + broadcast new focus
+    if (focusIdx) {
+      collab.sendCursor(focusIdx);
+      collab.lockBlock(focusIdx);
+    } else {
+      collab.sendCursor('');
+    }
+
+    prevIdx.current = focusIdx;
+  }, [focusIdx, collab]);
+
+  return null;
+}
+
 export default function Editor() {
   const dispatch = useDispatch();
   const history = useHistory();
@@ -182,13 +215,65 @@ export default function Editor() {
   const [codeMode, setCodeMode] = useState(false);
   const [codeMjml, setCodeMjml] = useState('');
   const codeMjmlRef = useRef('');
-  const [editorKey, setEditorKey] = useState(0); // bump to force EmailEditorProvider re-mount
+  const [editorKey, setEditorKey] = useState(0);
+  const [showCodeModeConfirm, setShowCodeModeConfirm] = useState(false);
 
   // Autosave refs
   const formApiRef = useRef<FormApi<IEmailTemplate> | null>(null);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedContentRef = useRef<string>('');
-  const lastScheduledContentRef = useRef<string>(''); // content when timer was last scheduled
+  const lastScheduledContentRef = useRef<string>('');
+  const applyingRemotePatchRef = useRef(false);
+  const prevFocusIdxRef = useRef<string>('');
+  const currentUserIdRef = useRef<string>(getUserIdentity().userId);
+
+  // ── Collaboration callbacks (defined before the hook) ──
+  const onCollabContentUpdate = useCallback((patch: ContentPatch) => {
+    if (!formApiRef.current) return;
+    applyingRemotePatchRef.current = true;
+    formApiRef.current.change(patch.path as any, patch.value);
+    setTimeout(() => {
+      if (formApiRef.current) {
+        lastSavedContentRef.current = JSON.stringify(formApiRef.current.getState().values.content);
+        lastScheduledContentRef.current = lastSavedContentRef.current;
+      }
+      applyingRemotePatchRef.current = false;
+    }, 100);
+  }, []);
+
+  const onCollabCodeModeEntered = useCallback(() => {
+    if (!formApiRef.current) return;
+    const values = formApiRef.current.getState().values;
+    const mjml = JsonToMjml({
+      data: values.content,
+      mode: 'production',
+      context: values.content,
+      beautify: true,
+    });
+    setCodeMjml(mjml);
+    codeMjmlRef.current = mjml;
+    setCodeMode(true);
+  }, []);
+
+  const onCollabCodeModeExited = useCallback((content: string, userId: string) => {
+    if (!formApiRef.current) return;
+    if (userId === currentUserIdRef.current) return;
+    try {
+      const parsed = MjmlToJson(content);
+      dispatch(template.actions.set({ ...formApiRef.current.getState().values, content: parsed as any }));
+      setCodeMode(false);
+      setEditorKey(k => k + 1);
+    } catch {}
+  }, [dispatch]);
+
+  const collab = useCollaboration(
+    savedArticleId ? String(savedArticleId) : null,
+    onCollabContentUpdate,
+    onCollabCodeModeEntered,
+    onCollabCodeModeExited,
+  );
+
+  currentUserIdRef.current = collab.currentUser.userId;
 
   // ── Tick every second for live "saved X seconds ago" tooltip ──
   useEffect(() => {
@@ -389,17 +474,24 @@ export default function Editor() {
   // ── Code mode ──
   const enterCodeMode = useCallback(() => {
     if (!formApiRef.current) return;
-    const values = formApiRef.current.getState().values;
-    const mjml = JsonToMjml({
-      data: values.content,
-      mode: 'production',
-      context: values.content,
-      beautify: true,
-    });
-    setCodeMjml(mjml);
-    codeMjmlRef.current = mjml;
-    setCodeMode(true);
-  }, []);
+    const otherUsers = collab.roomUsers.filter(u => u.userId !== collab.currentUser.userId);
+    if (otherUsers.length > 0) {
+      // Others are present — need consensus
+      setShowCodeModeConfirm(true);
+    } else {
+      // Alone — enter directly
+      const values = formApiRef.current.getState().values;
+      const mjml = JsonToMjml({
+        data: values.content,
+        mode: 'production',
+        context: values.content,
+        beautify: true,
+      });
+      setCodeMjml(mjml);
+      codeMjmlRef.current = mjml;
+      setCodeMode(true);
+    }
+  }, [collab.roomUsers, collab.currentUser.userId]);
 
   const exitCodeMode = useCallback(() => {
     if (!formApiRef.current) return;
@@ -418,10 +510,13 @@ export default function Editor() {
         lastSavedContentRef.current = JSON.stringify(parsed);
       }
 
-      // Update Redux store directly (no async fetch) and bump key to re-mount provider
+      // Update Redux store and bump key to re-mount provider
       dispatch(template.actions.set(newTemplate));
       setCodeMode(false);
       setEditorKey(k => k + 1);
+
+      // Broadcast to other users
+      collab.exitCodeMode(currentMjml);
     } catch (err: any) {
       Message.error('Invalid MJML — fix errors before switching to visual mode');
     }
@@ -536,6 +631,13 @@ export default function Editor() {
                       placeholder='Untitled email'
                       onChange={e => helper.change('subject', e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                    />
+                    {/* Avatars */}
+                    <AvatarBar
+                      currentUser={collab.currentUser}
+                      roomUsers={collab.roomUsers}
+                      connected={collab.connected}
+                      onUpdateIdentity={collab.updateIdentity}
                     />
                   </div>
 
@@ -658,6 +760,7 @@ export default function Editor() {
                   </div>
                 </header>
 
+                <CollaborationSync collab={collab} />
                 {codeMode ? (
                   <MjmlCodeEditor
                     mjmlString={codeMjml}
@@ -666,7 +769,15 @@ export default function Editor() {
                   />
                 ) : (
                   <SimpleLayout showSourceCode={false}>
-                    <EmailEditor />
+                    <>
+                      <EmailEditor />
+                      <RemoteCursors
+                        remoteCursors={collab.remoteCursors}
+                        lockedBlocks={collab.lockedBlocks}
+                        currentUserId={collab.currentUser.userId}
+                        roomUsers={collab.roomUsers}
+                      />
+                    </>
                   </SimpleLayout>
                 )}
               </>
@@ -894,6 +1005,58 @@ export default function Editor() {
             </div>
           </Dialog>
         </Transition>
+        {/* ── Code mode consensus: my proposal confirmation ── */}
+        {showCodeModeConfirm && (
+          <div className='fixed inset-0 z-50 flex items-center justify-center p-4'>
+            <div className='absolute inset-0 bg-black/30' onClick={() => setShowCodeModeConfirm(false)} />
+            <div className='relative bg-white rounded-lg shadow-xl p-6 max-w-md w-full'>
+              <h3 className='text-lg font-semibold text-gray-900 mb-2'>Switch to Code Mode?</h3>
+              <p className='text-sm text-gray-600 mb-4'>
+                This will switch <strong>all {collab.roomUsers.length - 1} other editor{collab.roomUsers.length > 2 ? 's' : ''}</strong> to code view and unlock all blocks. They will need to approve this change.
+              </p>
+              <div className='flex justify-end gap-2'>
+                <button className='px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors' onClick={() => setShowCodeModeConfirm(false)}>Cancel</button>
+                <button
+                  className='px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors'
+                  onClick={() => {
+                    setShowCodeModeConfirm(false);
+                    collab.proposeCodeMode();
+                    Message.info('Waiting for other editors to approve...');
+                  }}
+                >
+                  Request Switch
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Code mode consensus: remote proposal received ── */}
+        {collab.codeModeProposal && (
+          <div className='fixed inset-0 z-50 flex items-center justify-center p-4'>
+            <div className='absolute inset-0 bg-black/30' />
+            <div className='relative bg-white rounded-lg shadow-xl p-6 max-w-md w-full'>
+              <h3 className='text-lg font-semibold text-gray-900 mb-2'>Code Mode Requested</h3>
+              <p className='text-sm text-gray-600 mb-4'>
+                <strong>{collab.codeModeProposal.userName}</strong> wants to switch everyone to code mode. This will change your view and unlock all blocks.
+              </p>
+              <div className='flex justify-end gap-2'>
+                <button
+                  className='px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors'
+                  onClick={() => collab.rejectCodeMode()}
+                >
+                  Deny
+                </button>
+                <button
+                  className='px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors'
+                  onClick={() => collab.confirmCodeMode()}
+                >
+                  Allow
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </ConfigProvider>
   );
