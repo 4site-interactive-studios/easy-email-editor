@@ -7,17 +7,24 @@ export interface ContentPatch {
   timestamp: number;
 }
 
+export interface MousePosition {
+  x: number;
+  y: number;
+}
+
 export interface CollaborationState {
   connected: boolean;
   roomUsers: UserPresence[];
   currentUser: UserPresence;
   lockedBlocks: Map<string, UserPresence>;
   remoteCursors: Map<string, string>; // userId → focusIdx
+  remoteMousePositions: Map<string, MousePosition>; // userId → {x, y}
   codeModeProposal: { userId: string; userName: string } | null;
 }
 
 export interface CollaborationActions {
   sendCursor: (focusIdx: string) => void;
+  sendMousePosition: (x: number, y: number) => void;
   lockBlock: (blockIdx: string) => void;
   unlockBlock: (blockIdx: string) => void;
   sendContentChange: (patch: ContentPatch) => void;
@@ -41,6 +48,7 @@ export function useCollaboration(
   const [currentUser, setCurrentUser] = useState<UserPresence>(getUserIdentity);
   const [lockedBlocks, setLockedBlocks] = useState<Map<string, UserPresence>>(new Map());
   const [remoteCursors, setRemoteCursors] = useState<Map<string, string>>(new Map());
+  const [remoteMousePositions, setRemoteMousePositions] = useState<Map<string, MousePosition>>(new Map());
   const [codeModeProposal, setCodeModeProposal] = useState<{ userId: string; userName: string } | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -100,6 +108,11 @@ export function useCollaboration(
               next.delete(msg.userId);
               return next;
             });
+            setRemoteMousePositions(prev => {
+              const next = new Map(prev);
+              next.delete(msg.userId);
+              return next;
+            });
             setLockedBlocks(prev => {
               const next = new Map(prev);
               for (const [blockIdx, u] of next) {
@@ -117,6 +130,14 @@ export function useCollaboration(
               } else {
                 next.delete(msg.userId);
               }
+              return next;
+            });
+            break;
+
+          case 'mouse-moved':
+            setRemoteMousePositions(prev => {
+              const next = new Map(prev);
+              next.set(msg.userId, { x: msg.x, y: msg.y });
               return next;
             });
             break;
@@ -186,6 +207,19 @@ export function useCollaboration(
     send({ type: 'cursor', focusIdx });
   }, [send]);
 
+  const lastMouseRef = useRef({ x: 0, y: 0, t: 0 });
+  const sendMousePosition = useCallback((x: number, y: number) => {
+    // Throttle: only send if moved significantly or >50ms since last send
+    const last = lastMouseRef.current;
+    const now = Date.now();
+    const dx = Math.abs(x - last.x);
+    const dy = Math.abs(y - last.y);
+    if ((dx > 3 || dy > 3) && now - last.t > 50) {
+      lastMouseRef.current = { x, y, t: now };
+      send({ type: 'mouse-position', x, y });
+    }
+  }, [send]);
+
   const lockBlock = useCallback((blockIdx: string) => {
     send({ type: 'lock', blockIdx });
   }, [send]);
@@ -226,8 +260,10 @@ export function useCollaboration(
     currentUser,
     lockedBlocks,
     remoteCursors,
+    remoteMousePositions,
     codeModeProposal,
     sendCursor,
+    sendMousePosition,
     lockBlock,
     unlockBlock,
     sendContentChange,

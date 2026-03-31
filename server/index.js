@@ -312,6 +312,12 @@ wss.on('connection', (ws) => {
         broadcastToRoom(found.roomId, { type: 'block-unlocked', userId: found.client.user.userId, blockIdx: msg.blockIdx }, ws);
         break;
       }
+      case 'mouse-position': {
+        const found = findClient(ws);
+        if (!found) return;
+        broadcastToRoom(found.roomId, { type: 'mouse-moved', userId: found.client.user.userId, x: msg.x, y: msg.y }, ws);
+        break;
+      }
       case 'content-change': {
         const found = findClient(ws);
         if (!found) return;
