@@ -37,21 +37,26 @@ export function RemoteCursors({
     return () => clearInterval(interval);
   }, []);
 
-  // Track local mouse position and broadcast
-  useEffect(() => {
-    const el = editorContainerRef.current;
-    if (!el) return;
+  // Track local mouse position and broadcast (relative to editor container)
+  const onMouseMoveRef = useRef(onMouseMove);
+  onMouseMoveRef.current = onMouseMove;
+  const containerRefStable = editorContainerRef;
 
+  useEffect(() => {
     const handler = (e: MouseEvent) => {
+      const el = containerRefStable.current;
+      if (!el) return;
       const rect = el.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-      onMouseMove(x, y);
+      // Only send if mouse is within the editor area
+      if (x >= 0 && y >= 0 && x <= rect.width && y <= rect.height) {
+        onMouseMoveRef.current(x, y);
+      }
     };
-
-    el.addEventListener('mousemove', handler, { passive: true });
-    return () => el.removeEventListener('mousemove', handler);
-  }, [editorContainerRef, onMouseMove]);
+    document.addEventListener('mousemove', handler, { passive: true });
+    return () => document.removeEventListener('mousemove', handler);
+  }, []); // Stable — refs handle changing values
 
   const overlays: React.ReactNode[] = [];
 
@@ -216,15 +221,12 @@ export function RemoteCursors({
     };
   }, [remoteTextCursors, currentUserId, roomUsers, showCursors]);
 
-  // Floating mouse cursors
-  const containerRect = editorContainerRef.current?.getBoundingClientRect();
-
   return (
     <>
       {overlays}
 
-      {/* Floating mouse cursors rendered in the editor container */}
-      {showCursors && containerRect && Array.from(remoteMousePositions.entries()).map(([userId, pos]) => {
+      {/* Floating mouse cursors positioned absolutely in the editor container */}
+      {showCursors && Array.from(remoteMousePositions.entries()).map(([userId, pos]) => {
         if (userId === currentUserId) return null;
         const user = roomUsers.find(u => u.userId === userId);
         if (!user) return null;
