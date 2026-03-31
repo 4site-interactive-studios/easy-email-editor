@@ -1,5 +1,5 @@
 import { IArticle } from '@demo/services/article';
-import { localStorageTemplates } from '@demo/utils/local-storage-templates';
+import { api } from '@demo/utils/api';
 import createSliceState from './common/createSliceState';
 
 export default createSliceState({
@@ -10,7 +10,7 @@ export default createSliceState({
   },
   effects: {
     fetch: async state => {
-      const list = localStorageTemplates.getAll();
+      const list = await api.getAll();
       list.sort((a, b) => (a.updated_at > b.updated_at ? -1 : 1));
       return list;
     },

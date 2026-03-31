@@ -12,7 +12,7 @@ import { generateThumbnail } from '@demo/utils/generateThumbnail';
 import { IBlockData } from 'easy-email-core';
 import { nowUnix } from '@demo/utils/time';
 import { MjmlToJson } from 'easy-email-extensions';
-import { localStorageTemplates } from '@demo/utils/local-storage-templates';
+import { api } from '@demo/utils/api';
 import { IArticle } from '@demo/services/article';
 
 const THUMB_CACHE_KEY = 'template_thumbnail_cache';
@@ -74,13 +74,13 @@ export default function Home() {
     list.forEach(async item => {
       if (item.picture) return;
       try {
-        const raw = localStorageTemplates.getById(item.article_id);
+        const raw = await api.getById(item.article_id);
         if (!raw) return;
         const content = JSON.parse(raw.content.content) as IBlockData;
         const picture = await generateThumbnail(content);
-        const latest = localStorageTemplates.getById(item.article_id);
+        const latest = await api.getById(item.article_id);
         if (latest) {
-          localStorageTemplates.save({ ...latest, picture });
+          await api.save({ ...latest, picture });
         }
         dispatch(templateList.actions.fetch(undefined));
       } catch {
@@ -102,7 +102,7 @@ export default function Home() {
       const content = MjmlToJson(source);
 
       // Save to localStorage
-      const id = localStorageTemplates.generateId();
+      const id = api.generateId();
       const now = nowUnix();
       const article: IArticle = {
         article_id: id,
@@ -122,13 +122,13 @@ export default function Home() {
         created_at: now,
         updated_at: now,
       };
-      localStorageTemplates.save(article);
+      await api.save(article);
 
       // Generate thumbnail in background
       generateThumbnail(content as any)
-        .then(picture => {
-          const latest = localStorageTemplates.getById(id);
-          if (latest) localStorageTemplates.save({ ...latest, picture });
+        .then(async picture => {
+          const latest = await api.getById(id);
+          if (latest) await api.save({ ...latest, picture });
           dispatch(templateList.actions.fetch(undefined));
         })
         .catch(() => {});

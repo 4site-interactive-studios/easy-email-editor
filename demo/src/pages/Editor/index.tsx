@@ -17,8 +17,7 @@ import { cloneDeep } from 'lodash';
 import { Loading } from '@demo/components/loading';
 import { getTemplate } from '@demo/config/getTemplate';
 import { generateThumbnail } from '@demo/utils/generateThumbnail';
-import { localStorageTemplates } from '@demo/utils/local-storage-templates';
-import { revisionStore, Revision } from '@demo/utils/revisions';
+import { api, Revision } from '@demo/utils/api';
 import { MjmlCodeEditor } from '@demo/components/MjmlCodeEditor';
 import { MjmlToJson } from 'easy-email-extensions';
 import { IArticle } from '@demo/services/article';
@@ -49,37 +48,36 @@ import { useWindowSize } from 'react-use';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Write an IEmailTemplate to localStorage. */
-function saveToLocalStorage(articleId: number, values: IEmailTemplate, isNew?: boolean): void {
-  const existing = isNew ? null : localStorageTemplates.getById(articleId);
+/** Write an IEmailTemplate to the server database. */
+async function saveTemplate(articleId: number, values: IEmailTemplate): Promise<void> {
   const now = nowUnix();
   const article: IArticle = {
     article_id: articleId,
-    title: values.subject || existing?.title || 'Untitled',
-    summary: values.subTitle || existing?.summary || '',
-    picture: existing?.picture || '',
+    title: values.subject || 'Untitled',
+    summary: values.subTitle || '',
+    picture: '',
     content: {
       article_id: articleId,
       content: JSON.stringify(values.content),
     },
-    user_id: existing?.user_id ?? 0,
-    category_id: existing?.category_id ?? 0,
-    tags: existing?.tags ?? [],
-    secret: existing?.secret ?? 0,
-    readcount: existing?.readcount ?? 0,
-    level: existing?.level ?? 0,
-    created_at: existing?.created_at ?? now,
+    user_id: 0,
+    category_id: 0,
+    tags: [],
+    secret: 0,
+    readcount: 0,
+    level: 0,
+    created_at: now,
     updated_at: now,
   };
-  localStorageTemplates.save(article);
+  await api.save(article);
 }
 
-/** Generate thumbnail in background and patch into localStorage. */
+/** Generate thumbnail in background and patch into the database. */
 function generateThumbnailInBackground(articleId: number, content: IBlockData): void {
   generateThumbnail(content)
-    .then(picture => {
-      const latest = localStorageTemplates.getById(articleId);
-      if (latest) localStorageTemplates.save({ ...latest, picture });
+    .then(async picture => {
+      const latest = await api.getById(articleId);
+      if (latest) await api.save({ ...latest, picture });
     })
     .catch(() => {});
 }
@@ -283,15 +281,16 @@ export default function Editor() {
   }, [lastSavedAt]);
 
   // ── Core save function (used by both autosave and manual save) ──
-  const performSave = useCallback((articleId: number, values: IEmailTemplate, label: string) => {
+  const performSave = useCallback(async (articleId: number, values: IEmailTemplate, label: string) => {
     try {
       const contentJson = JSON.stringify(values.content);
-      saveToLocalStorage(articleId, values);
-      revisionStore.add(articleId, {
+      await saveTemplate(articleId, values);
+      await api.addRevision(articleId, {
         timestamp: nowUnix(),
         label,
         content: contentJson,
         subject: values.subject || '',
+        note: '',
       });
       lastSavedContentRef.current = contentJson;
       lastScheduledContentRef.current = contentJson;
@@ -368,11 +367,13 @@ export default function Editor() {
   // ── Backfill thumbnail ──
   useEffect(() => {
     if (!savedArticleId || !templateData || thumbnailBackfilled.current) return;
-    const existing = localStorageTemplates.getById(savedArticleId);
-    if (existing && !existing.picture) {
-      thumbnailBackfilled.current = true;
-      generateThumbnailInBackground(savedArticleId, templateData.content as any);
-    }
+    (async () => {
+      const existing = await api.getById(savedArticleId);
+      if (existing && !existing.picture) {
+        thumbnailBackfilled.current = true;
+        generateThumbnailInBackground(savedArticleId, templateData.content as any);
+      }
+    })();
   }, [savedArticleId, templateData]);
 
   const initialValues: IEmailTemplate | null = useMemo(() => {
@@ -399,7 +400,7 @@ export default function Editor() {
     if (!formApiRef.current || !templateName.trim()) return;
     setShowNameModal(false);
     const values = await readFormValuesAfterFlush(formApiRef.current);
-    const newId = localStorageTemplates.generateId();
+    const newId = api.generateId();
     const namedValues = { ...values, subject: templateName.trim() };
     performSave(newId, namedValues, 'Manual save');
     setSavedArticleId(newId);
@@ -407,16 +408,17 @@ export default function Editor() {
   }, [history, templateName, performSave]);
 
   // ── Restore revision ──
-  const handleRestore = useCallback((rev: Revision) => {
+  const handleRestore = useCallback(async (rev: Revision) => {
     if (!savedArticleId || !formApiRef.current) return;
     // Save current state as a "before restore" revision
     const currentValues = formApiRef.current.getState().values;
     const currentContentJson = JSON.stringify(currentValues.content);
-    revisionStore.add(savedArticleId, {
+    await api.addRevision(savedArticleId, {
       timestamp: nowUnix(),
       label: 'Before restore',
       content: currentContentJson,
       subject: currentValues.subject || '',
+      note: '',
     });
     // Apply the restored content to localStorage
     const restoredContent = JSON.parse(rev.content);
@@ -425,13 +427,14 @@ export default function Editor() {
       content: restoredContent,
       subject: rev.subject || currentValues.subject,
     };
-    saveToLocalStorage(savedArticleId, restoredValues);
+    await saveTemplate(savedArticleId, restoredValues);
     // Add "Restored" revision
-    revisionStore.add(savedArticleId, {
+    await api.addRevision(savedArticleId, {
       timestamp: nowUnix(),
       label: 'Restored from revision',
       content: rev.content,
       subject: rev.subject,
+      note: '',
     });
     lastSavedContentRef.current = rev.content;
     // Reload the editor
@@ -506,7 +509,7 @@ export default function Editor() {
 
       // Persist to localStorage if saved
       if (savedArticleId) {
-        saveToLocalStorage(savedArticleId, newTemplate);
+        saveTemplate(savedArticleId, newTemplate);
         lastSavedContentRef.current = JSON.stringify(parsed);
       }
 
@@ -688,7 +691,7 @@ export default function Editor() {
                       <button
                         className='inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors'
                         onClick={() => {
-                          setRevisions(revisionStore.getAll(savedArticleId));
+                          api.getRevisions(savedArticleId).then(setRevisions);
                           setShowHistory(true);
                         }}
                         title='Revision history'
@@ -961,8 +964,8 @@ export default function Editor() {
                                     onChange={e => setEditingNoteText(e.target.value)}
                                     onKeyDown={e => {
                                       if (e.key === 'Enter' && savedArticleId) {
-                                        revisionStore.updateNote(savedArticleId, rev.id, editingNoteText);
-                                        setRevisions(revisionStore.getAll(savedArticleId));
+                                        api.updateRevisionNote(rev.id, editingNoteText);
+                                        api.getRevisions(savedArticleId).then(setRevisions);
                                         setEditingNoteId(null);
                                       } else if (e.key === 'Escape') {
                                         setEditingNoteId(null);
@@ -974,8 +977,8 @@ export default function Editor() {
                                     className='px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors'
                                     onClick={() => {
                                       if (savedArticleId) {
-                                        revisionStore.updateNote(savedArticleId, rev.id, editingNoteText);
-                                        setRevisions(revisionStore.getAll(savedArticleId));
+                                        api.updateRevisionNote(rev.id, editingNoteText);
+                                        api.getRevisions(savedArticleId).then(setRevisions);
                                         setEditingNoteId(null);
                                       }
                                     }}

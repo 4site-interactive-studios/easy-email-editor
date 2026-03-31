@@ -6,7 +6,7 @@ import { useHistory } from 'react-router-dom';
 import template from '@demo/store/template';
 import { useDispatch } from 'react-redux';
 import templateList from '@demo/store/templateList';
-import { revisionStore } from '@demo/utils/revisions';
+import { api } from '@demo/utils/api';
 import { getLoadingByKey, useLoading } from '@demo/hooks/useLoading';
 import { Loading } from '@demo/components/loading';
 
@@ -48,7 +48,7 @@ export function CardItem({ data, isBuiltIn }: CardItemProps) {
         id: data.article_id,
         _actionKey: data.article_id,
         success() {
-          revisionStore.clear(data.article_id);
+          api.clearRevisions(data.article_id);
           dispatch(templateList.actions.fetch(undefined));
         },
       }),
