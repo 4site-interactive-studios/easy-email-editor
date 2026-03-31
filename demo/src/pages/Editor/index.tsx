@@ -211,6 +211,8 @@ export default function Editor() {
 
   // Code mode
   const [codeMode, setCodeMode] = useState(false);
+  const [showCursors, setShowCursors] = useState(true);
+  const editorContainerRef = useRef<HTMLDivElement>(null);
   const [codeMjml, setCodeMjml] = useState('');
   const codeMjmlRef = useRef('');
   const [editorKey, setEditorKey] = useState(0);
@@ -227,17 +229,20 @@ export default function Editor() {
 
   // ── Collaboration callbacks (defined before the hook) ──
   const onCollabContentUpdate = useCallback((patch: ContentPatch) => {
-    if (!formApiRef.current) return;
+    if (!savedArticleId) return;
+    // Reload the template from the database to get the latest content
+    // and re-mount the editor provider to reflect changes
     applyingRemotePatchRef.current = true;
-    formApiRef.current.change(patch.path as any, patch.value);
+    dispatch(template.actions.fetchById({ id: savedArticleId }));
+    setEditorKey(k => k + 1);
     setTimeout(() => {
       if (formApiRef.current) {
         lastSavedContentRef.current = JSON.stringify(formApiRef.current.getState().values.content);
         lastScheduledContentRef.current = lastSavedContentRef.current;
       }
       applyingRemotePatchRef.current = false;
-    }, 100);
-  }, []);
+    }, 500);
+  }, [savedArticleId, dispatch]);
 
   const onCollabCodeModeEntered = useCallback(() => {
     if (!formApiRef.current) return;
@@ -296,6 +301,8 @@ export default function Editor() {
       lastScheduledContentRef.current = contentJson;
       setLastSavedAt(nowUnix());
       setSaveError(null);
+      // Broadcast content change to other collaborative editors
+      collab.sendContentChange({ path: 'content', value: values.content, timestamp: Date.now() });
       generateThumbnailInBackground(articleId, values.content as any);
     } catch (err: any) {
       setSaveError(err?.message || 'Save failed');
@@ -771,17 +778,22 @@ export default function Editor() {
                     height='calc(100vh - 52px)'
                   />
                 ) : (
-                  <SimpleLayout showSourceCode={false}>
-                    <>
+                  <div ref={editorContainerRef as any} style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
+                    <SimpleLayout showSourceCode={false}>
                       <EmailEditor />
-                      <RemoteCursors
-                        remoteCursors={collab.remoteCursors}
-                        lockedBlocks={collab.lockedBlocks}
-                        currentUserId={collab.currentUser.userId}
-                        roomUsers={collab.roomUsers}
-                      />
-                    </>
-                  </SimpleLayout>
+                    </SimpleLayout>
+                    <RemoteCursors
+                      remoteCursors={collab.remoteCursors}
+                      lockedBlocks={collab.lockedBlocks}
+                      remoteMousePositions={collab.remoteMousePositions}
+                      currentUserId={collab.currentUser.userId}
+                      roomUsers={collab.roomUsers}
+                      showCursors={showCursors}
+                      onToggleCursors={() => setShowCursors(v => !v)}
+                      editorContainerRef={editorContainerRef as any}
+                      onMouseMove={(x, y) => collab.sendMousePosition(x, y)}
+                    />
+                  </div>
                 )}
               </>
             );
