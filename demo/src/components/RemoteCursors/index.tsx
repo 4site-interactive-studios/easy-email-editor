@@ -37,6 +37,31 @@ export function RemoteCursors({
     return () => clearInterval(interval);
   }, []);
 
+  // Track whether each user is in "typing" or "cursor" mode.
+  // text-cursor updates → typing mode (hide mouse arrow, show caret)
+  // mouse-position updates → cursor mode (show arrow, carets cleaned up naturally)
+  const userModeRef = useRef<Map<string, 'cursor' | 'typing'>>(new Map());
+  const prevTextCursorsRef = useRef(remoteTextCursors);
+  const prevMouseRef = useRef(remoteMousePositions);
+
+  // Detect when a user starts/stops typing
+  if (remoteTextCursors !== prevTextCursorsRef.current) {
+    remoteTextCursors.forEach((_, userId) => {
+      if (!prevTextCursorsRef.current.has(userId) || prevTextCursorsRef.current.get(userId) !== remoteTextCursors.get(userId)) {
+        userModeRef.current.set(userId, 'typing');
+      }
+    });
+    prevTextCursorsRef.current = remoteTextCursors;
+  }
+  if (remoteMousePositions !== prevMouseRef.current) {
+    remoteMousePositions.forEach((_, userId) => {
+      if (!prevMouseRef.current.has(userId) || prevMouseRef.current.get(userId) !== remoteMousePositions.get(userId)) {
+        userModeRef.current.set(userId, 'cursor');
+      }
+    });
+    prevMouseRef.current = remoteMousePositions;
+  }
+
   // Track local mouse position and broadcast (relative to editor container)
   const onMouseMoveRef = useRef(onMouseMove);
   onMouseMoveRef.current = onMouseMove;
@@ -142,6 +167,7 @@ export function RemoteCursors({
 
     remoteTextCursors.forEach((pos, userId) => {
       if (userId === currentUserId) return;
+      if (userModeRef.current.get(userId) !== 'typing') return;
       const user = roomUsers.find(u => u.userId === userId);
       if (!user) return;
 
@@ -225,9 +251,10 @@ export function RemoteCursors({
     <>
       {overlays}
 
-      {/* Floating mouse cursors positioned absolutely in the editor container */}
+      {/* Floating mouse cursors — hidden when user is typing */}
       {showCursors && Array.from(remoteMousePositions.entries()).map(([userId, pos]) => {
         if (userId === currentUserId) return null;
+        if (userModeRef.current.get(userId) === 'typing') return null;
         const user = roomUsers.find(u => u.userId === userId);
         if (!user) return null;
         return (
