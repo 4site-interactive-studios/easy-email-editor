@@ -337,6 +337,12 @@ wss.on('connection', (ws) => {
         broadcastToRoom(found.roomId, { type: 'mouse-moved', userId: found.client.user.userId, x: msg.x, y: msg.y }, ws);
         break;
       }
+      case 'text-cursor': {
+        const found = findClient(ws);
+        if (!found) return;
+        broadcastToRoom(found.roomId, { type: 'text-cursor-moved', userId: found.client.user.userId, focusIdx: msg.focusIdx, offset: msg.offset, nodeIndex: msg.nodeIndex }, ws);
+        break;
+      }
       case 'content-change': {
         const found = findClient(ws);
         if (!found) return;

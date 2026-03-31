@@ -2,12 +2,13 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getBlockNodeByIdx } from 'easy-email-editor';
 import { UserPresence } from '@demo/utils/user-identity';
-import { MousePosition } from '@demo/hooks/useCollaboration';
+import { MousePosition, TextCursorPosition } from '@demo/hooks/useCollaboration';
 
 interface RemoteCursorsProps {
   remoteCursors: Map<string, string>;
   lockedBlocks: Map<string, UserPresence>;
   remoteMousePositions: Map<string, MousePosition>;
+  remoteTextCursors: Map<string, TextCursorPosition>;
   currentUserId: string;
   roomUsers: UserPresence[];
   showCursors: boolean;
@@ -24,7 +25,7 @@ const CursorArrow = ({ color }: { color: string }) => (
 );
 
 export function RemoteCursors({
-  remoteCursors, lockedBlocks, remoteMousePositions,
+  remoteCursors, lockedBlocks, remoteMousePositions, remoteTextCursors,
   currentUserId, roomUsers, showCursors, onToggleCursors,
   editorContainerRef, onMouseMove,
 }: RemoteCursorsProps) {
@@ -123,6 +124,97 @@ export function RemoteCursors({
       ),
     );
   });
+
+  // Inject text cursor carets into shadow DOM contenteditable elements
+  useEffect(() => {
+    if (!showCursors) return;
+    const editorRoot = document.getElementById('VisualEditorEditMode');
+    const shadowRoot = editorRoot?.shadowRoot;
+    if (!shadowRoot) return;
+
+    // Clean up old caret markers
+    shadowRoot.querySelectorAll('.remote-text-caret').forEach(el => el.remove());
+
+    remoteTextCursors.forEach((pos, userId) => {
+      if (userId === currentUserId) return;
+      const user = roomUsers.find(u => u.userId === userId);
+      if (!user) return;
+
+      // Find the contenteditable element by its idx attribute
+      const el = shadowRoot.querySelector(`[data-content_editable-idx="${pos.focusIdx}"]`) as HTMLElement;
+      if (!el) return;
+
+      // Walk text nodes to find the correct position
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+      let remaining = pos.offset;
+      let targetNode: Text | null = null;
+
+      while (walker.nextNode()) {
+        const textNode = walker.currentNode as Text;
+        if (remaining <= textNode.length) {
+          targetNode = textNode;
+          break;
+        }
+        remaining -= textNode.length;
+      }
+
+      if (!targetNode) return;
+
+      // Create a caret marker element
+      const caret = document.createElement('span');
+      caret.className = 'remote-text-caret';
+      caret.style.cssText = `
+        display: inline-block;
+        width: 2px;
+        height: 1.1em;
+        background: ${user.color};
+        margin: 0 -1px;
+        position: relative;
+        vertical-align: text-bottom;
+        pointer-events: none;
+        animation: blink 1s step-end infinite;
+      `;
+      // Name flag
+      const flag = document.createElement('span');
+      flag.style.cssText = `
+        position: absolute;
+        bottom: 100%;
+        left: -1px;
+        background: ${user.color};
+        color: #fff;
+        font-size: 9px;
+        font-weight: 600;
+        padding: 1px 4px;
+        border-radius: 2px 2px 2px 0;
+        white-space: nowrap;
+        line-height: 12px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      `;
+      flag.textContent = `${user.emoji} ${user.name}`;
+      caret.appendChild(flag);
+
+      // Split the text node and insert the caret
+      try {
+        const afterNode = targetNode.splitText(remaining);
+        targetNode.parentNode?.insertBefore(caret, afterNode);
+      } catch {
+        // If offset is out of bounds, append at end
+        el.appendChild(caret);
+      }
+    });
+
+    // Add blink animation if not already present
+    if (!shadowRoot.querySelector('#remote-caret-styles')) {
+      const style = document.createElement('style');
+      style.id = 'remote-caret-styles';
+      style.textContent = `@keyframes blink { 50% { opacity: 0; } }`;
+      shadowRoot.appendChild(style);
+    }
+
+    return () => {
+      shadowRoot.querySelectorAll('.remote-text-caret').forEach(el => el.remove());
+    };
+  }, [remoteTextCursors, currentUserId, roomUsers, showCursors]);
 
   // Floating mouse cursors
   const containerRect = editorContainerRef.current?.getBoundingClientRect();
