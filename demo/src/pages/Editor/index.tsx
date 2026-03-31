@@ -223,26 +223,25 @@ export default function Editor() {
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedContentRef = useRef<string>('');
   const lastScheduledContentRef = useRef<string>('');
+  const broadcastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastBroadcastContentRef = useRef<string>('');
   const applyingRemotePatchRef = useRef(false);
   const prevFocusIdxRef = useRef<string>('');
   const currentUserIdRef = useRef<string>(getUserIdentity().userId);
 
   // ── Collaboration callbacks (defined before the hook) ──
   const onCollabContentUpdate = useCallback((patch: ContentPatch) => {
-    if (!savedArticleId) return;
-    // Reload the template from the database to get the latest content
-    // and re-mount the editor provider to reflect changes
+    if (!formApiRef.current) return;
+    // Apply the patch directly to the form state — no database round-trip
     applyingRemotePatchRef.current = true;
-    dispatch(template.actions.fetchById({ id: savedArticleId }));
-    setEditorKey(k => k + 1);
-    setTimeout(() => {
-      if (formApiRef.current) {
-        lastSavedContentRef.current = JSON.stringify(formApiRef.current.getState().values.content);
-        lastScheduledContentRef.current = lastSavedContentRef.current;
-      }
-      applyingRemotePatchRef.current = false;
-    }, 500);
-  }, [savedArticleId, dispatch]);
+    formApiRef.current.change(patch.path as any, patch.value);
+    // Update refs so this change doesn't trigger our own broadcast or autosave
+    const contentJson = JSON.stringify(formApiRef.current.getState().values.content);
+    lastSavedContentRef.current = contentJson;
+    lastScheduledContentRef.current = contentJson;
+    lastBroadcastContentRef.current = contentJson;
+    applyingRemotePatchRef.current = false;
+  }, []);
 
   const onCollabCodeModeEntered = useCallback(() => {
     if (!formApiRef.current) return;
@@ -301,8 +300,6 @@ export default function Editor() {
       lastScheduledContentRef.current = contentJson;
       setLastSavedAt(nowUnix());
       setSaveError(null);
-      // Broadcast content change to other collaborative editors
-      collab.sendContentChange({ path: 'content', value: values.content, timestamp: Date.now() });
       generateThumbnailInBackground(articleId, values.content as any);
     } catch (err: any) {
       setSaveError(err?.message || 'Save failed');
@@ -346,6 +343,7 @@ export default function Editor() {
     return () => {
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
       if (validationTimerRef.current) clearTimeout(validationTimerRef.current);
+      if (broadcastTimerRef.current) clearTimeout(broadcastTimerRef.current);
     };
   }, []);
 
@@ -574,16 +572,22 @@ export default function Editor() {
           {({ values }, helper) => {
             formApiRef.current = helper;
 
-            // ── Autosave debounce (2s after last change) ──
-            // Only schedule a new timer when content has changed since the last
-            // timer was scheduled. Read fresh values from formApiRef when the
-            // timer fires so we always save the latest state.
+            // ── Real-time broadcast (200ms debounce) ──
+            // Sends content changes to other editors immediately, separate from autosave
             const contentJson = JSON.stringify(values.content);
+            if (savedArticleId && !applyingRemotePatchRef.current && contentJson !== lastBroadcastContentRef.current) {
+              lastBroadcastContentRef.current = contentJson;
+              if (broadcastTimerRef.current) clearTimeout(broadcastTimerRef.current);
+              broadcastTimerRef.current = setTimeout(() => {
+                collab.sendContentChange({ path: 'content', value: values.content, timestamp: Date.now() });
+              }, 200);
+            }
+
+            // ── Autosave to database (2s debounce) ──
             if (savedArticleId && contentJson !== lastSavedContentRef.current && contentJson !== lastScheduledContentRef.current) {
               lastScheduledContentRef.current = contentJson;
               if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
               autosaveTimerRef.current = setTimeout(() => {
-                // Read fresh values at fire time, not from the stale closure
                 if (formApiRef.current) {
                   const freshValues = formApiRef.current.getState().values;
                   autosave(savedArticleId, freshValues);
