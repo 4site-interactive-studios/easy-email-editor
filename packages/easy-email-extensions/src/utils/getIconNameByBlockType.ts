@@ -33,6 +33,10 @@ let iconsMap = {
   [AdvancedType.COLUMN]: 'icon-column',
   [AdvancedType.GROUP]: 'icon-group',
   [AdvancedType.HERO]: 'icon-hero',
+  [AdvancedType.TABLE]: 'icon-layout',
+
+  [BasicType.TABLE]: 'icon-layout',
+  [BasicType.RAW]: 'icon-html',
 };
 
 export function getIconNameByBlockType(type: string) {

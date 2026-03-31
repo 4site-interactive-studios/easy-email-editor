@@ -36,7 +36,7 @@ export function Button() {
       <CollapseWrapper defaultActiveKey={['-1', '0', '1', '2', '3']}>
         <Collapse.Item
           name='-1'
-          header={t('Setting')}
+          header={t('Button')}
         >
           <Space direction='vertical'>
             <TextField
@@ -69,7 +69,7 @@ export function Button() {
 
         <Collapse.Item
           name='0'
-          header={t('Dimension')}
+          header={t('Size')}
         >
           <Space direction='vertical'>
             <Grid.Row>
@@ -172,7 +172,7 @@ export function Button() {
         </Collapse.Item>
         <Collapse.Item
           name='4'
-          header={t('Extra')}
+          header={t('Advanced')}
         >
           <Grid.Col span={24}>
             <ClassName />

@@ -1,12 +1,4 @@
-import React, { useEffect } from 'react';
-import { Layout, Menu, Breadcrumb } from '@arco-design/web-react';
-import { Stack } from '../Stack';
-import { pushEvent } from '@demo/utils/pushEvent';
-import { githubButtonGenerate } from '@demo/utils/githubButtonGenerate';
-import { useShowCommercialEditor } from '@demo/hooks/useShowCommercialEditor';
-
-const { SubMenu } = Menu;
-const { Header, Content, Sider } = Layout;
+import React from 'react';
 
 interface FrameProps {
   title: string;
@@ -21,122 +13,42 @@ export default function Frame({
   primaryAction,
   breadcrumb,
 }: FrameProps) {
-  useEffect(() => {
-    githubButtonGenerate();
-  }, []);
-  const { featureEnabled } = useShowCommercialEditor();
   return (
-    <Layout>
-      <Header style={{ padding: '0 20px', backgroundColor: '#001529' }}>
-        <Stack
-          distribution='equalSpacing'
-          alignment='center'
-        >
-          <h1 style={{ color: 'white', margin: '15px 0' }}>Easy-email</h1>
+    <div className='min-h-screen flex flex-col bg-gray-50'>
+      {/* Header */}
+      <header className='bg-gray-900 px-5 py-0 flex items-center h-[60px] shrink-0'>
+        <h1 className='text-white text-lg font-semibold m-0'>MJML Editor</h1>
+      </header>
 
-          <div style={{ marginTop: 10 }}>
-            <Stack
-              distribution='equalSpacing'
-              alignment='center'
+      <div className='flex flex-1 overflow-hidden'>
+        {/* Sidebar */}
+        <aside className='w-[200px] bg-white border-r border-gray-200 shrink-0 hidden md:block'>
+          <nav className='py-2'>
+            <a
+              href='/'
+              className='block px-6 py-2 text-sm font-medium text-blue-600 bg-blue-50 border-r-2 border-blue-600'
             >
-              <a
-                href='https://www.buymeacoffee.com/easyemail?utm_source=webside&utm_medium=button&utm_content=donate'
-                target='_blank'
-                onClick={() => pushEvent({ event: 'Donate' })}
-              >
-                <img
-                  src='https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png'
-                  alt='Buy Me A Coffee'
-                />
-              </a>
-              <a
-                className='github-button'
-                href='https://github.com/arco-design/easy-email?utm_source=webside&utm_medium=button&utm_content=star'
-                data-size='large'
-                data-icon='octicon-star'
-                data-show-count='true'
-                aria-label='Star m-Ryan/easy-email on GitHub'
-                style={{ opacity: 0 }}
-              >
-                Star
-              </a>
+              Templates
+            </a>
+          </nav>
+        </aside>
 
-              <a
-                className='github-button'
-                href='https://github.com/arco-design/easy-email/fork?utm_source=webside&utm_medium=button&utm_content=fork'
-                data-size='large'
-                data-show-count='true'
-                aria-label='Fork m-Ryan/easy-email on GitHub'
-                style={{ opacity: 0 }}
-              >
-                Fork
-              </a>
+        {/* Main content */}
+        <main className='flex-1 p-6 overflow-auto'>
+          {breadcrumb && (
+            <div className='text-sm text-gray-500 mb-2'>{breadcrumb}</div>
+          )}
 
-              <a
-                className='github-button'
-                href='https://github.com/arco-design/easy-email/issues?utm_source=webside&utm_medium=button&utm_content=issues'
-                data-size='large'
-                data-show-count='true'
-                aria-label='Issue m-Ryan/easy-email on GitHub'
-                onClick={() => pushEvent({ event: 'Issue' })}
-                style={{ opacity: 0 }}
-              >
-                Issue
-              </a>
-            </Stack>
+          <div className='flex items-center justify-between mb-5'>
+            <h2 className='text-xl font-bold text-gray-900 m-0'>{title}</h2>
+            {primaryAction}
           </div>
-        </Stack>
-      </Header>
 
-      <Layout>
-        <Sider width={200}>
-          <Menu
-            defaultSelectedKeys={['1']}
-            defaultOpenKeys={['sub1']}
-            style={{ height: '100%', borderRight: 0 }}
-          >
-            <SubMenu
-              key='sub1'
-              title='Templates'
-            >
-              <Menu.Item key='1'>Templates</Menu.Item>
-            </SubMenu>
-          </Menu>
-        </Sider>
-        <Layout style={{ padding: 24 }}>
-          <Stack vertical>
-            {breadcrumb && (
-              <Breadcrumb>
-                <Breadcrumb.Item>{breadcrumb}</Breadcrumb.Item>
-              </Breadcrumb>
-            )}
-
-            <Stack
-              distribution='equalSpacing'
-              alignment='center'
-            >
-              <Stack.Item>
-                <h2>
-                  <strong>{title}</strong>
-                </h2>
-              </Stack.Item>
-              <Stack.Item>{primaryAction}</Stack.Item>
-            </Stack>
-
-            <Stack.Item>
-              <Content
-                style={{
-                  padding: 24,
-                  margin: 0,
-                  backgroundColor: '#fff',
-                }}
-              >
-                {children}
-              </Content>
-            </Stack.Item>
-          </Stack>
-        </Layout>
-      </Layout>
-    </Layout>
+          <div className='bg-white rounded-lg p-6 shadow-sm'>
+            {children}
+          </div>
+        </main>
+      </div>
+    </div>
   );
 }

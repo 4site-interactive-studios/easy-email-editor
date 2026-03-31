@@ -145,7 +145,7 @@ export function Accordion() {
         </Collapse.Item>
         <Collapse.Item
           name='4'
-          header={t('Extra')}
+          header={t('Advanced')}
         >
           <Grid.Col span={24}>
             <ClassName />

@@ -48,6 +48,14 @@
     }
   }
 }
+.resizeHandleLine {
+  opacity: 0;
+}
+
+*:hover > .resizeHandleLine {
+  opacity: 1;
+}
+
 .customScrollBarV2 {
   overflow: scroll;
   &::-webkit-scrollbar {

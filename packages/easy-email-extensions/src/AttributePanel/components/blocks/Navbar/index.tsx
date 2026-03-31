@@ -70,7 +70,7 @@ export function Navbar() {
         </Collapse.Item>
         <Collapse.Item
           name='4'
-          header={t('Extra')}
+          header={t('Advanced')}
         >
           <Grid.Col span={24}>
             <ClassName />

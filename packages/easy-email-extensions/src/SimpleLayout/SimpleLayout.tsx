@@ -1,7 +1,8 @@
 import { ShortcutToolbar } from '../ShortcutToolbar';
 import { Button, Card, ConfigProvider, Layout, Tabs } from '@arco-design/web-react';
-import { useEditorProps } from 'easy-email-editor';
-import React, { useState } from 'react';
+import { useEditorProps, useFocusIdx } from 'easy-email-editor';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useWindowSize } from 'react-use';
 import { SourceCodePanel } from '../SourceCodePanel';
 import { AttributePanel } from '../AttributePanel';
 import { BlockLayer, BlockLayerProps } from '../BlockLayer';
@@ -10,6 +11,84 @@ import styles from './index.module.scss';
 import enUS from '@arco-design/web-react/es/locale/en-US';
 import { MergeTagBadgePrompt } from '@extensions/MergeTagBadgePrompt';
 import { IconLeft, IconRight } from '@arco-design/web-react/icon';
+
+// ─── Resize handle ─────────────────────────────────────────────────────────────
+
+function ResizeHandle({ side, onResize }: {
+  side: 'left' | 'right';
+  onResize: (delta: number) => void;
+}) {
+  const dragging = useRef(false);
+  const lastX = useRef(0);
+
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    dragging.current = true;
+    lastX.current = e.clientX;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!dragging.current) return;
+      const delta = ev.clientX - lastX.current;
+      lastX.current = ev.clientX;
+      // For the left panel, dragging right = wider (positive delta)
+      // For the right panel, dragging left = wider (negative delta → invert)
+      onResize(side === 'left' ? delta : -delta);
+    };
+
+    const onMouseUp = () => {
+      dragging.current = false;
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [onResize, side]);
+
+  return (
+    <div
+      onMouseDown={onMouseDown}
+      style={{
+        position: 'absolute',
+        top: 0,
+        [side === 'left' ? 'right' : 'left']: -3,
+        width: 6,
+        height: '100%',
+        cursor: 'col-resize',
+        zIndex: 20,
+      }}
+    >
+      {/* Visible line on hover */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 2,
+          width: 2,
+          height: '100%',
+          borderRadius: 1,
+          transition: 'opacity 0.15s',
+          opacity: 0,
+          backgroundColor: 'var(--selected-color, #1890ff)',
+        }}
+        className={styles.resizeHandleLine}
+      />
+    </div>
+  );
+}
+
+// ─── SimpleLayout ──────────────────────────────────────────────────────────────
+
+const LEFT_MIN = 76;
+const LEFT_DEFAULT = 316;
+const LEFT_MAX = 480;
+const RIGHT_MIN = 260;
+const RIGHT_DEFAULT = 350;
+const RIGHT_MAX = 500;
 
 export const SimpleLayout: React.FC<
   {
@@ -22,7 +101,36 @@ export const SimpleLayout: React.FC<
 > = props => {
   const { height: containerHeight } = useEditorProps();
   const { showSourceCode = true, defaultShowLayer = true, jsonReadOnly = false, mjmlReadOnly = true } = props;
-  const [collapsed, setCollapsed] = useState(!defaultShowLayer);
+  const { width: viewportWidth } = useWindowSize();
+  const isNarrow = viewportWidth < 1280;
+
+  const [collapsed, setCollapsed] = useState(() => !defaultShowLayer || isNarrow);
+  const [rightCollapsed, setRightCollapsed] = useState(() => isNarrow);
+  const [leftWidth, setLeftWidth] = useState(LEFT_DEFAULT);
+  const [rightWidth, setRightWidth] = useState(RIGHT_DEFAULT);
+
+  // Auto-expand right panel when a block is focused
+  const { focusIdx } = useFocusIdx();
+  const initialFocusRef = useRef(true);
+  useEffect(() => {
+    // Skip the initial render (page block auto-focused on load)
+    if (initialFocusRef.current) {
+      initialFocusRef.current = false;
+      return;
+    }
+    if (focusIdx && rightCollapsed) {
+      setRightCollapsed(false);
+    }
+  }, [focusIdx, rightCollapsed]);
+
+  const onResizeLeft = useCallback((delta: number) => {
+    setLeftWidth(w => Math.max(LEFT_MIN + 1, Math.min(LEFT_MAX, w + delta)));
+  }, []);
+
+  const onResizeRight = useCallback((delta: number) => {
+    setRightWidth(w => Math.max(RIGHT_MIN, Math.min(RIGHT_MAX, w + delta)));
+  }, []);
+
   return (
     <ConfigProvider locale={enUS}>
       <Layout
@@ -31,23 +139,23 @@ export const SimpleLayout: React.FC<
           display: 'flex',
           width: '100%',
           overflow: 'hidden',
-          minWidth: 1400,
+          minWidth: 960,
         }}
       >
         <Layout.Sider
-          style={{ paddingRight: 0 }}
+          style={{ paddingRight: 0, position: 'relative' }}
           collapsed={collapsed}
           collapsible
           trigger={null}
           breakpoint='xl'
-          collapsedWidth={60}
-          width={300}
+          collapsedWidth={76}
+          width={leftWidth}
         >
           <Card
             bodyStyle={{ padding: 0 }}
             style={{ border: 'none' }}
           >
-            <Card.Grid style={{ width: 60, textAlign: 'center' }}>
+            <Card.Grid style={{ width: 76, textAlign: 'center' }}>
               <ShortcutToolbar />
               <Button
                 style={{
@@ -80,6 +188,7 @@ export const SimpleLayout: React.FC<
               </Card>
             </Card.Grid>
           </Card>
+          {!collapsed && <ResizeHandle side='left' onResize={onResizeLeft} />}
         </Layout.Sider>
 
         <Layout style={{ height: containerHeight }}>{props.children}</Layout>
@@ -87,12 +196,36 @@ export const SimpleLayout: React.FC<
         <Layout.Sider
           style={{
             height: containerHeight,
-            minWidth: 300,
-            maxWidth: 350,
-            width: 350,
+            minWidth: rightCollapsed ? 32 : RIGHT_MIN,
+            maxWidth: rightCollapsed ? 32 : RIGHT_MAX,
+            width: rightCollapsed ? 32 : rightWidth,
+            overflow: 'visible',
+            position: 'relative',
           }}
           className={styles.rightSide}
         >
+          {/* Right panel collapse toggle */}
+          <Button
+            style={{
+              position: 'absolute',
+              left: -16,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              zIndex: 10,
+              width: 20,
+              height: 40,
+              minWidth: 'unset',
+              padding: 0,
+              borderRadius: '4px 0 0 4px',
+              boxShadow: '-2px 0 6px rgba(0,0,0,0.12)',
+            }}
+            icon={rightCollapsed ? <IconLeft /> : <IconRight />}
+            onClick={() => setRightCollapsed(v => !v)}
+          />
+          {!rightCollapsed && <ResizeHandle side='right' onResize={onResizeRight} />}
+          {/* Always render AttributePanel so RichTextField stays mounted
+              and listens for inline contenteditable edits in the shadow DOM.
+              Hide visually when collapsed, but never unmount. */}
           <Card
             size='small'
             id='rightSide'
@@ -100,6 +233,7 @@ export const SimpleLayout: React.FC<
               maxHeight: '100%',
               height: '100%',
               borderLeft: 'none',
+              display: rightCollapsed ? 'none' : undefined,
             }}
             bodyStyle={{ padding: 0 }}
             className={styles.customScrollBarV2}

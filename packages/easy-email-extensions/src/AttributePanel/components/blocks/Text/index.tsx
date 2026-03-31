@@ -36,7 +36,7 @@ export function Text() {
       <CollapseWrapper defaultActiveKey={['0', '1', '2']}>
         <Collapse.Item
           name='0'
-          header={t('Dimension')}
+          header={t('Size')}
         >
           <Space direction='vertical'>
             <Height />
@@ -115,7 +115,7 @@ export function Text() {
         </Collapse.Item>
         <Collapse.Item
           name='4'
-          header={t('Extra')}
+          header={t('Advanced')}
         >
           <Grid.Col span={24}>
             <ClassName />

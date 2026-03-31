@@ -1,11 +1,12 @@
-import { article, IArticle } from '@demo/services/article';
+import { IArticle } from '@demo/services/article';
 import createSliceState from './common/createSliceState';
 import { Message } from '@arco-design/web-react';
 import { history } from '@demo/utils/history';
-import { emailToImage } from '@demo/utils/emailToImage';
 import { IBlockData, BlockManager, BasicType, AdvancedType } from 'easy-email-core';
 import { IEmailTemplate } from 'easy-email-editor';
 import { getTemplate } from '@demo/config/getTemplate';
+import { localStorageTemplates } from '@demo/utils/local-storage-templates';
+import { nowUnix } from '@demo/utils/time';
 
 export function getAdaptor(data: IArticle): IEmailTemplate {
   const content = JSON.parse(data.content.content) as IBlockData;
@@ -28,18 +29,15 @@ export default createSliceState({
   effects: {
     fetchById: async (
       state,
-      {
-        id,
-        userId,
-      }: {
-        id: number;
-        userId: number;
-      },
+      { id }: { id: number; userId?: number },
     ) => {
       try {
         let data = await getTemplate(id);
         if (!data) {
-          data = await article.getArticle(id, userId);
+          data = localStorageTemplates.getById(id);
+        }
+        if (!data) {
+          throw new Error('Template not found');
         }
         return getAdaptor(data);
       } catch (error) {
@@ -60,84 +58,114 @@ export default createSliceState({
       state,
       payload: {
         template: IEmailTemplate;
+        name: string;
+        picture?: string;
         success: (id: number, data: IEmailTemplate) => void;
       },
     ) => {
-      const picture = await emailToImage(payload.template.content);
-      const data = await article.addArticle({
-        picture,
-        summary: payload.template.subTitle,
-        title: payload.template.subject,
-        content: JSON.stringify(payload.template.content),
-      });
-      payload.success(data.article_id, getAdaptor(data));
-      return { ...data, ...payload.template };
+      const id = localStorageTemplates.generateId();
+      const now = nowUnix();
+      const articleData: IArticle = {
+        article_id: id,
+        title: payload.name,
+        summary: payload.template.subTitle || '',
+        picture: payload.picture || '',
+        content: {
+          article_id: id,
+          content: JSON.stringify(payload.template.content),
+        },
+        user_id: 0,
+        category_id: 0,
+        tags: [],
+        secret: 0,
+        readcount: 0,
+        level: 0,
+        created_at: now,
+        updated_at: now,
+      };
+      localStorageTemplates.save(articleData);
+      const adapted = getAdaptor(articleData);
+      payload.success(id, adapted);
+      return adapted;
     },
     duplicate: async (
       state,
       payload: {
-        article: {
-          article_id: number;
-          user_id: number;
-        };
+        article: { article_id: number; user_id: number };
         success: (id: number) => void;
       },
     ) => {
-      const source = await article.getArticle(
-        payload.article.article_id,
-        payload.article.user_id,
-      );
-      const data = await article.addArticle({
-        title: source.title,
-        content: source.content.content,
-        picture: source.picture,
-        summary: source.summary,
-      });
-      payload.success(data.article_id);
+      let source = await getTemplate(payload.article.article_id);
+      if (!source) {
+        source = localStorageTemplates.getById(payload.article.article_id);
+      }
+      if (!source) {
+        throw new Error('Template not found');
+      }
+      const id = localStorageTemplates.generateId();
+      const now = nowUnix();
+      const copy: IArticle = {
+        article_id: id,
+        title: source.title + ' (copy)',
+        summary: source.summary || '',
+        picture: source.picture || '',
+        content: {
+          article_id: id,
+          content: typeof source.content === 'string'
+            ? source.content
+            : source.content.content,
+        },
+        user_id: 0,
+        category_id: 0,
+        tags: [],
+        secret: 0,
+        readcount: 0,
+        level: 0,
+        created_at: now,
+        updated_at: now,
+      };
+      localStorageTemplates.save(copy);
+      payload.success(id);
     },
     updateById: async (
       state,
       payload: {
         id: number;
         template: IEmailTemplate;
+        picture?: string;
         success: (templateId: number) => void;
       },
     ) => {
-      try {
-        let isDefaultTemplate = await getTemplate(payload.id);
-        if (isDefaultTemplate) {
-          Message.error('Cannot change the default template');
-          return;
-        }
-
-        const picture = await emailToImage(payload.template.content);
-        await article.updateArticle(payload.id, {
-          picture,
-          content: JSON.stringify(payload.template.content),
-          title: payload.template.subject,
-          summary: payload.template.subTitle,
-        });
-        payload.success(payload.id);
-      } catch (error: any) {
-        if (error?.response?.status === 404) {
-          throw {
-            message: 'Cannot change the default template',
-          };
-        }
+      const isDefault = await getTemplate(payload.id);
+      if (isDefault) {
+        Message.error('Cannot change the default template');
+        return;
       }
+
+      const existing = localStorageTemplates.getById(payload.id);
+      if (!existing) {
+        Message.error('Template not found');
+        return;
+      }
+
+      const updated: IArticle = {
+        ...existing,
+        title: payload.template.subject || existing.title,
+        summary: payload.template.subTitle || existing.summary,
+        picture: payload.picture || existing.picture,
+        content: {
+          article_id: payload.id,
+          content: JSON.stringify(payload.template.content),
+        },
+        updated_at: nowUnix(),
+      };
+      localStorageTemplates.save(updated);
+      payload.success(payload.id);
     },
     removeById: async (state, payload: { id: number; success: () => void }) => {
-      try {
-        await article.deleteArticle(payload.id);
-        payload.success();
-        Message.success('Removed success.');
-      } catch (error: any) {
-        if (error?.response?.status === 404) {
-          throw {
-            message: 'Cannot delete the default template',
-          };
-        }
-      }
+      localStorageTemplates.remove(payload.id);
+      payload.success();
+      Message.success('Removed successfully.');
     },
   },
 });
