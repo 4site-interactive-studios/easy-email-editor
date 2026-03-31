@@ -11,6 +11,12 @@ export default defineConfig({
     fs: {
       strict: false,
     },
+    proxy: {
+      '/ws': {
+        target: 'ws://localhost:3100',
+        ws: true,
+      },
+    },
   },
   resolve: {
     alias: {
