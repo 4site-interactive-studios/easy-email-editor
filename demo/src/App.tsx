@@ -9,6 +9,7 @@ import { history } from './utils/history';
 import Home from '@demo/pages/Home';
 
 const Editor = React.lazy(() => import('@demo/pages/Editor'));
+const Settings = React.lazy(() => import('@demo/pages/Settings'));
 
 function App() {
   return (
@@ -51,6 +52,10 @@ function App() {
               <Route
                 path='/editor'
                 component={Editor}
+              />
+              <Route
+                path='/settings'
+                component={Settings}
               />
             </Switch>
           </Router>

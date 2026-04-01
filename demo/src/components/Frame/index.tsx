@@ -23,12 +23,26 @@ export default function Frame({
       <div className='flex flex-1 overflow-hidden'>
         {/* Sidebar */}
         <aside className='w-[200px] bg-white border-r border-gray-200 shrink-0 hidden md:block'>
-          <nav className='py-2'>
+          <nav className='py-2 flex flex-col h-full'>
             <a
               href='/'
-              className='block px-6 py-2 text-sm font-medium text-blue-600 bg-blue-50 border-r-2 border-blue-600'
+              className={`block px-6 py-2 text-sm font-medium ${
+                window.location.pathname === '/'
+                  ? 'text-blue-600 bg-blue-50 border-r-2 border-blue-600'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
             >
               Templates
+            </a>
+            <a
+              href='/settings'
+              className={`block px-6 py-2 text-sm font-medium ${
+                window.location.pathname === '/settings'
+                  ? 'text-blue-600 bg-blue-50 border-r-2 border-blue-600'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              Settings
             </a>
           </nav>
         </aside>

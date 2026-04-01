@@ -42,6 +42,11 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_revisions_article ON revisions(article_id);
+
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
 `);
 
 // Prepared statements
@@ -223,6 +228,60 @@ const httpServer = createServer(async (req, res) => {
         }
       }
       return json(res, presence);
+    }
+
+    // ── Settings ──
+    if (path === '/api/settings/anthropic-key' && method === 'GET') {
+      const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('anthropic_api_key');
+      if (!row) return json(res, { configured: false, masked: '' });
+      const val = row.value;
+      const masked = val.length > 12 ? val.substring(0, 7) + '••••••••' + val.substring(val.length - 4) : '••••••••';
+      return json(res, { configured: true, masked });
+    }
+
+    if (path === '/api/settings/anthropic-key' && method === 'PUT') {
+      const body = await parseBody(req);
+      if (!body.key) return json(res, { error: 'Key required' }, 400);
+      db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('anthropic_api_key', body.key);
+      return json(res, { ok: true });
+    }
+
+    if (path === '/api/settings/anthropic-key' && method === 'DELETE') {
+      db.prepare('DELETE FROM settings WHERE key = ?').run('anthropic_api_key');
+      return json(res, { ok: true });
+    }
+
+    // ── AI Fix MJML ──
+    if (path === '/api/ai/fix-mjml' && method === 'POST') {
+      const body = await parseBody(req);
+      const apiKeyRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('anthropic_api_key');
+      if (!apiKeyRow) return json(res, { error: 'No Anthropic API key configured. Add one in Settings.' }, 400);
+
+      const aiResponse = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKeyRow.value,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 8192,
+          messages: [{
+            role: 'user',
+            content: `Fix the following MJML email template. Here are the validation errors:\n\n${(body.errors || []).join('\n')}\n\nHere is the MJML:\n\n${body.mjml}\n\nReturn ONLY the corrected MJML with no explanation, no markdown code fences, no commentary. Keep all existing content, images, and styling intact — only fix the validation errors.`,
+          }],
+        }),
+      });
+
+      if (!aiResponse.ok) {
+        const err = await aiResponse.json().catch(() => ({}));
+        return json(res, { error: err.error?.message || `Claude API error: ${aiResponse.status}` }, 502);
+      }
+
+      const result = await aiResponse.json();
+      const fixedMjml = (result.content?.[0]?.text || '').trim();
+      return json(res, { mjml: fixedMjml });
     }
 
     // Not found

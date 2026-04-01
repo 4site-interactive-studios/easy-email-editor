@@ -7,7 +7,7 @@ import { useLoading } from '@demo/hooks/useLoading';
 import { ConfigProvider, Message } from '@arco-design/web-react';
 import { Dialog, Transition, Menu as HMenu } from '@headlessui/react';
 import {
-  ArrowLeft, Download, Copy, ChevronDown,
+  ArrowLeft, Download, Copy, ChevronDown, Wand2, Loader2,
   AlertTriangle, CheckCircle, X, History, RotateCcw, Check,
   Code, Eye, FileCode, StickyNote,
 } from 'lucide-react';
@@ -241,6 +241,9 @@ export default function Editor() {
   // MJML validation
   const [validationErrors, setValidationErrors] = useState<Array<{ line: number; message: string; tagName: string; formattedMessage: string }>>([]);
   const [showValidation, setShowValidation] = useState(false);
+  const [aiFixing, setAiFixing] = useState(false);
+  const [aiFixError, setAiFixError] = useState('');
+  const [aiKeyConfigured, setAiKeyConfigured] = useState(false);
   const validationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Revision history
@@ -377,6 +380,11 @@ export default function Editor() {
       dispatch(template.actions.set(null));
     };
   }, [dispatch, id]);
+
+  // ── Check if AI API key is configured ──
+  useEffect(() => {
+    api.getApiKeyStatus().then(s => setAiKeyConfigured(s.configured)).catch(() => {});
+  }, []);
 
   // ── Clean up timers on unmount ──
   useEffect(() => {
@@ -584,6 +592,35 @@ export default function Editor() {
     const subject = formApiRef.current?.getState().values.subject || 'email';
     downloadFile(mjml, `${subject}.mjml`, 'text/xml');
   }, [codeMode]);
+
+  // ── Fix with AI ──
+  const handleFixWithAI = useCallback(async () => {
+    if (!formApiRef.current || validationErrors.length === 0) return;
+    setAiFixing(true);
+    setAiFixError('');
+    try {
+      const values = formApiRef.current.getState().values;
+      const mjml = JsonToMjml({ data: values.content, mode: 'production', context: values.content, beautify: true });
+      const errorMessages = validationErrors.map(e => e.formattedMessage || e.message);
+      const result = await api.fixMjmlWithAI(mjml, errorMessages);
+      if (!result.mjml) throw new Error('No corrected MJML returned');
+      const parsed = MjmlToJson(result.mjml);
+      if (savedArticleId) {
+        await saveTemplate(savedArticleId, { ...values, content: parsed as any });
+        lastSavedContentRef.current = JSON.stringify(parsed);
+        lastScheduledContentRef.current = lastSavedContentRef.current;
+        lastBroadcastContentRef.current = lastSavedContentRef.current;
+      }
+      dispatch(template.actions.set({ ...values, content: parsed as any }));
+      setEditorKey(k => k + 1);
+      setShowValidation(false);
+      Message.success('Validation issues fixed by AI.');
+    } catch (err: any) {
+      setAiFixError(err?.message || 'Failed to fix MJML with AI.');
+    } finally {
+      setAiFixing(false);
+    }
+  }, [validationErrors, savedArticleId, dispatch]);
 
   // ── Loading ──
   if (!templateData && loading) {
@@ -916,8 +953,28 @@ export default function Editor() {
                       </div>
                     )}
                   </div>
-                  <div className='flex justify-end px-6 py-3 border-t border-gray-200'>
-                    <button className='px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors' onClick={() => setShowValidation(false)}>Close</button>
+                  <div className='px-6 py-3 border-t border-gray-200'>
+                    {aiFixError && (
+                      <div className='text-sm text-red-600 mb-2'>{aiFixError}</div>
+                    )}
+                    <div className='flex justify-between items-center'>
+                      {validationErrors.length > 0 && aiKeyConfigured ? (
+                        <button
+                          className='inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-md hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+                          onClick={handleFixWithAI}
+                          disabled={aiFixing}
+                        >
+                          {aiFixing ? (
+                            <><Loader2 size={14} className='animate-spin' /> Fixing...</>
+                          ) : (
+                            <><Wand2 size={14} /> Fix with AI</>
+                          )}
+                        </button>
+                      ) : (
+                        <span />
+                      )}
+                      <button className='px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors' onClick={() => setShowValidation(false)}>Close</button>
+                    </div>
                   </div>
                 </Dialog.Panel>
               </Transition.Child>
