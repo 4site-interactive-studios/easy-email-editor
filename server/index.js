@@ -251,12 +251,13 @@ const httpServer = createServer(async (req, res) => {
       return json(res, { ok: true });
     }
 
-    // ── AI Fix MJML ──
+    // ── AI Fix MJML (streaming) ──
     if (path === '/api/ai/fix-mjml' && method === 'POST') {
       const body = await parseBody(req);
       const apiKeyRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('anthropic_api_key');
       if (!apiKeyRow) return json(res, { error: 'No Anthropic API key configured. Add one in Settings.' }, 400);
 
+      // Use extended thinking + streaming for real-time progress
       const aiResponse = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -266,7 +267,9 @@ const httpServer = createServer(async (req, res) => {
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 8192,
+          max_tokens: 16000,
+          thinking: { type: 'enabled', budget_tokens: 4000 },
+          stream: true,
           messages: [{
             role: 'user',
             content: `Fix the following MJML email template. Here are the validation errors:\n\n${(body.errors || []).join('\n')}\n\nHere is the MJML:\n\n${body.mjml}\n\nReturn ONLY the corrected MJML with no explanation, no markdown code fences, no commentary. Keep all existing content, images, and styling intact — only fix the validation errors.`,
@@ -279,9 +282,56 @@ const httpServer = createServer(async (req, res) => {
         return json(res, { error: err.error?.message || `Claude API error: ${aiResponse.status}` }, 502);
       }
 
-      const result = await aiResponse.json();
-      const fixedMjml = (result.content?.[0]?.text || '').trim();
-      return json(res, { mjml: fixedMjml });
+      // Stream SSE events to the client
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+      });
+
+      let fullText = '';
+      let thinkingText = '';
+      const reader = aiResponse.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          // Parse SSE lines from the Claude stream
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const data = line.substring(6);
+            if (data === '[DONE]') continue;
+            try {
+              const event = JSON.parse(data);
+              if (event.type === 'content_block_delta') {
+                if (event.delta?.type === 'thinking_delta') {
+                  thinkingText += event.delta.thinking;
+                  res.write(`data: ${JSON.stringify({ type: 'thinking', text: event.delta.thinking })}\n\n`);
+                } else if (event.delta?.type === 'text_delta') {
+                  fullText += event.delta.text;
+                  res.write(`data: ${JSON.stringify({ type: 'text', text: event.delta.text })}\n\n`);
+                }
+              }
+            } catch {}
+          }
+        }
+      } catch (streamErr) {
+        res.write(`data: ${JSON.stringify({ type: 'error', error: 'Stream interrupted' })}\n\n`);
+      }
+
+      // Send the complete MJML as the final event
+      res.write(`data: ${JSON.stringify({ type: 'done', mjml: fullText.trim() })}\n\n`);
+      res.end();
+      return;
     }
 
     // Not found
