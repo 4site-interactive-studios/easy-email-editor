@@ -126,6 +126,15 @@ export const api = {
       throw new Error(err.error || `API error: ${res.status}`);
     }
 
+    const contentType = res.headers.get('content-type') || '';
+
+    // Non-streaming fallback (if server returns plain JSON)
+    if (contentType.includes('application/json')) {
+      const result = await res.json();
+      if (result.mjml) return { mjml: result.mjml };
+      throw new Error(result.error || 'No corrected MJML returned');
+    }
+
     // Parse SSE stream
     const reader = res.body!.getReader();
     const decoder = new TextDecoder();
@@ -152,6 +161,7 @@ export const api = {
       }
     }
 
+    if (!finalMjml) throw new Error('No corrected MJML received from AI');
     return { mjml: finalMjml };
   },
 };
