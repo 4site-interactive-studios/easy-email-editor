@@ -108,8 +108,8 @@ export function RemoteCursors({
       const canvas = document.getElementById('easy-email-editor');
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
-      const px = e.clientX - rect.left;
-      const py = e.clientY - rect.top;
+      const px = Math.round(e.clientX - rect.left);
+      const py = Math.round(e.clientY - rect.top);
       if (px >= -50 && py >= -50 && px <= rect.width + 50 && py <= rect.height + 50) {
         onMouseMoveRef.current(px, py);
       }
@@ -337,16 +337,20 @@ export function RemoteCursors({
           if (userModeRef.current.get(userId) === 'typing') return null;
           const user = roomUsers.find(u => u.userId === userId);
           if (!user) return null;
+          const x = Math.round(offsetX + pos.x);
+          const y = Math.round(offsetY + pos.y);
           return (
             <div
               key={`mouse-${userId}`}
               style={{
                 position: 'absolute',
-                left: offsetX + pos.x,
-                top: offsetY + pos.y,
+                left: 0,
+                top: 0,
+                transform: `translate(${x}px, ${y}px)`,
+                willChange: 'transform',
                 pointerEvents: 'none',
                 zIndex: 9999,
-                transition: 'none',
+                transition: 'transform 30ms ease-out',
               }}
             >
               <CursorArrow color={user.color} />
