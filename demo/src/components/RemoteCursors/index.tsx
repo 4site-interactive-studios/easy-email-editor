@@ -24,6 +24,42 @@ const CursorArrow = ({ color }: { color: string }) => (
   </svg>
 );
 
+function createCaretMarker(user: { color: string; emoji: string; name: string }, showFlag: boolean): HTMLSpanElement {
+  const caret = document.createElement('span');
+  caret.className = 'remote-text-caret';
+  caret.style.cssText = `
+    display: inline-block;
+    width: 2px;
+    height: 1.1em;
+    background: ${user.color};
+    margin: 0 -1px;
+    position: relative;
+    vertical-align: text-bottom;
+    pointer-events: none;
+    animation: blink 1s step-end infinite;
+  `;
+  if (showFlag) {
+    const flag = document.createElement('span');
+    flag.style.cssText = `
+      position: absolute;
+      bottom: 100%;
+      left: -1px;
+      background: ${user.color};
+      color: #fff;
+      font-size: 9px;
+      font-weight: 600;
+      padding: 1px 4px;
+      border-radius: 2px 2px 2px 0;
+      white-space: nowrap;
+      line-height: 12px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    `;
+    flag.textContent = `${user.emoji} ${user.name}`;
+    caret.appendChild(flag);
+  }
+  return caret;
+}
+
 export function RemoteCursors({
   remoteCursors, lockedBlocks, remoteMousePositions, remoteTextCursors,
   currentUserId, roomUsers, showCursors, onToggleCursors,
@@ -154,15 +190,29 @@ export function RemoteCursors({
     );
   });
 
-  // Inject text cursor carets into shadow DOM contenteditable elements
+  // Inject text cursor carets and selection highlights into shadow DOM
   useEffect(() => {
     if (!showCursors) return;
     const editorRoot = document.getElementById('VisualEditorEditMode');
     const shadowRoot = editorRoot?.shadowRoot;
     if (!shadowRoot) return;
 
-    // Clean up old caret markers
-    shadowRoot.querySelectorAll('.remote-text-caret').forEach(el => el.remove());
+    // Clean up old markers
+    shadowRoot.querySelectorAll('.remote-text-caret, .remote-text-highlight').forEach(el => el.remove());
+
+    // Helper: find text node + local offset at a given character offset
+    const findTextPosition = (container: HTMLElement, charOffset: number): { node: Text; offset: number } | null => {
+      const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+      let remaining = charOffset;
+      while (walker.nextNode()) {
+        const textNode = walker.currentNode as Text;
+        if (remaining <= textNode.length) {
+          return { node: textNode, offset: remaining };
+        }
+        remaining -= textNode.length;
+      }
+      return null;
+    };
 
     remoteTextCursors.forEach((pos, userId) => {
       if (userId === currentUserId) return;
@@ -170,66 +220,86 @@ export function RemoteCursors({
       const user = roomUsers.find(u => u.userId === userId);
       if (!user) return;
 
-      // Find the contenteditable element by its idx attribute
       const el = shadowRoot.querySelector(`[data-content_editable-idx="${pos.focusIdx}"]`) as HTMLElement;
       if (!el) return;
 
-      // Walk text nodes to find the correct position
-      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
-      let remaining = pos.offset;
-      let targetNode: Text | null = null;
+      const hasSelection = pos.endOffset >= 0 && pos.endOffset !== pos.offset;
 
-      while (walker.nextNode()) {
-        const textNode = walker.currentNode as Text;
-        if (remaining <= textNode.length) {
-          targetNode = textNode;
-          break;
+      if (hasSelection) {
+        // Render selection highlight using Range + CSS highlight
+        try {
+          const startPos = findTextPosition(el, pos.offset);
+          const endPos = findTextPosition(el, pos.endOffset);
+          if (!startPos || !endPos) return;
+
+          const range = document.createRange();
+          range.setStart(startPos.node, startPos.offset);
+          range.setEnd(endPos.node, endPos.offset);
+
+          // Wrap selected content in a highlight span
+          const highlight = document.createElement('span');
+          highlight.className = 'remote-text-highlight';
+          highlight.style.cssText = `
+            background: ${user.color}30;
+            border-bottom: 2px solid ${user.color};
+            position: relative;
+            pointer-events: none;
+          `;
+          try {
+            range.surroundContents(highlight);
+          } catch {
+            // surroundContents fails if range crosses element boundaries —
+            // fall back to just showing carets at start and end
+            const caretStart = createCaretMarker(user, true);
+            const caretEnd = createCaretMarker(user, false);
+            try {
+              startPos.node.splitText(startPos.offset);
+              startPos.node.parentNode?.insertBefore(caretStart, startPos.node.nextSibling);
+            } catch {}
+            // Re-find end position since DOM changed
+            const endPos2 = findTextPosition(el, pos.endOffset + 2); // +2 for inserted caret
+            if (endPos2) {
+              try {
+                endPos2.node.splitText(endPos2.offset);
+                endPos2.node.parentNode?.insertBefore(caretEnd, endPos2.node.nextSibling);
+              } catch {}
+            }
+            return;
+          }
+
+          // Add name flag to the highlight
+          const flag = document.createElement('span');
+          flag.className = 'remote-text-caret';
+          flag.style.cssText = `
+            position: absolute;
+            top: -18px;
+            left: 0;
+            background: ${user.color};
+            color: #fff;
+            font-size: 9px;
+            font-weight: 600;
+            padding: 1px 4px;
+            border-radius: 2px;
+            white-space: nowrap;
+            line-height: 12px;
+            pointer-events: none;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          `;
+          flag.textContent = `${user.emoji} ${user.name}`;
+          highlight.appendChild(flag);
+        } catch {}
+      } else {
+        // Render single caret (no selection)
+        const startPos = findTextPosition(el, pos.offset);
+        if (!startPos) return;
+
+        const caret = createCaretMarker(user, true);
+        try {
+          const afterNode = startPos.node.splitText(startPos.offset);
+          startPos.node.parentNode?.insertBefore(caret, afterNode);
+        } catch {
+          el.appendChild(caret);
         }
-        remaining -= textNode.length;
-      }
-
-      if (!targetNode) return;
-
-      // Create a caret marker element
-      const caret = document.createElement('span');
-      caret.className = 'remote-text-caret';
-      caret.style.cssText = `
-        display: inline-block;
-        width: 2px;
-        height: 1.1em;
-        background: ${user.color};
-        margin: 0 -1px;
-        position: relative;
-        vertical-align: text-bottom;
-        pointer-events: none;
-        animation: blink 1s step-end infinite;
-      `;
-      // Name flag
-      const flag = document.createElement('span');
-      flag.style.cssText = `
-        position: absolute;
-        bottom: 100%;
-        left: -1px;
-        background: ${user.color};
-        color: #fff;
-        font-size: 9px;
-        font-weight: 600;
-        padding: 1px 4px;
-        border-radius: 2px 2px 2px 0;
-        white-space: nowrap;
-        line-height: 12px;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      `;
-      flag.textContent = `${user.emoji} ${user.name}`;
-      caret.appendChild(flag);
-
-      // Split the text node and insert the caret
-      try {
-        const afterNode = targetNode.splitText(remaining);
-        targetNode.parentNode?.insertBefore(caret, afterNode);
-      } catch {
-        // If offset is out of bounds, append at end
-        el.appendChild(caret);
       }
     });
 
@@ -242,7 +312,7 @@ export function RemoteCursors({
     }
 
     return () => {
-      shadowRoot.querySelectorAll('.remote-text-caret').forEach(el => el.remove());
+      shadowRoot.querySelectorAll('.remote-text-caret, .remote-text-highlight').forEach(el => el.remove());
     };
   }, [remoteTextCursors, currentUserId, roomUsers, showCursors]);
 

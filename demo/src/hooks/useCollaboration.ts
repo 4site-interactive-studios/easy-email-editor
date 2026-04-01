@@ -14,8 +14,9 @@ export interface MousePosition {
 
 export interface TextCursorPosition {
   focusIdx: string;
-  offset: number;
-  nodeIndex: number; // which text node within the contenteditable
+  offset: number;      // start of selection (or caret position if collapsed)
+  endOffset: number;   // end of selection (-1 if collapsed / no selection)
+  nodeIndex: number;
 }
 
 export interface CollaborationState {
@@ -143,7 +144,7 @@ export function useCollaboration(
           case 'text-cursor-moved':
             setRemoteTextCursors(prev => {
               const next = new Map(prev);
-              next.set(msg.userId, { focusIdx: msg.focusIdx, offset: msg.offset, nodeIndex: msg.nodeIndex });
+              next.set(msg.userId, { focusIdx: msg.focusIdx, offset: msg.offset, endOffset: msg.endOffset ?? -1, nodeIndex: msg.nodeIndex });
               return next;
             });
             break;
@@ -222,7 +223,7 @@ export function useCollaboration(
   }, [send]);
 
   const sendTextCursor = useCallback((pos: TextCursorPosition) => {
-    send({ type: 'text-cursor', focusIdx: pos.focusIdx, offset: pos.offset, nodeIndex: pos.nodeIndex });
+    send({ type: 'text-cursor', focusIdx: pos.focusIdx, offset: pos.offset, endOffset: pos.endOffset, nodeIndex: pos.nodeIndex });
   }, [send]);
 
   const lastMouseRef = useRef({ x: 0, y: 0, t: 0 });
