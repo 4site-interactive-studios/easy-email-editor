@@ -84,4 +84,30 @@ export const api = {
   async clearRevisions(articleId: number): Promise<void> {
     await request(`/templates/${articleId}/revisions`, { method: 'DELETE' });
   },
+
+  // ── Settings ──
+
+  async getApiKeyStatus(): Promise<{ configured: boolean; masked: string }> {
+    return request('/settings/anthropic-key');
+  },
+
+  async setApiKey(key: string): Promise<void> {
+    await request('/settings/anthropic-key', {
+      method: 'PUT',
+      body: JSON.stringify({ key }),
+    });
+  },
+
+  async removeApiKey(): Promise<void> {
+    await request('/settings/anthropic-key', { method: 'DELETE' });
+  },
+
+  // ── AI ──
+
+  async fixMjmlWithAI(mjml: string, errors: string[]): Promise<{ mjml: string }> {
+    return request('/ai/fix-mjml', {
+      method: 'POST',
+      body: JSON.stringify({ mjml, errors }),
+    });
+  },
 };
