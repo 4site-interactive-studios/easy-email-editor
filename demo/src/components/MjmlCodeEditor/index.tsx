@@ -248,11 +248,17 @@ export function MjmlCodeEditor({ mjmlString, onMjmlChange, height }: MjmlCodeEdi
   }, []);
 
   // Handle code changes — debounce compilation
-  const handleChange = useCallback((_editor: any, _data: any, value: string) => {
+  const handleChange = useCallback((editor: any, data: any, value: string) => {
     setCode(value);
     onMjmlChange(value);
     if (compileTimerRef.current) clearTimeout(compileTimerRef.current);
     compileTimerRef.current = setTimeout(() => compile(value), 500);
+    // Trigger autocomplete when '<' is typed
+    if (data.text && data.text[0] === '<') {
+      setTimeout(() => {
+        editor.showHint?.({ schemaInfo: mjmlSchema, completeSingle: false });
+      }, 10);
+    }
   }, [compile, onMjmlChange]);
 
   // Toggle line wrapping
@@ -356,13 +362,6 @@ export function MjmlCodeEditor({ mjmlString, onMjmlChange, height }: MjmlCodeEdi
               foldGutter: true,
               gutters: ['CodeMirror-linenumbers', 'CodeMirror-foldgutter'],
               extraKeys: {
-                "'<'": (cm: any) => {
-                  cm.replaceSelection('<');
-                  (cm as any).showHint({
-                    schemaInfo: mjmlSchema,
-                    completeSingle: false,
-                  });
-                },
                 'Ctrl-Space': (cm: any) => {
                   (cm as any).showHint({
                     schemaInfo: mjmlSchema,
