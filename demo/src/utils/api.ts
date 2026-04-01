@@ -88,7 +88,13 @@ export const api = {
   // ── Settings ──
 
   async getApiKeyStatus(): Promise<{ configured: boolean; masked: string }> {
-    return request('/settings/anthropic-key');
+    try {
+      const result = await request<any>('/settings/anthropic-key');
+      if (result && typeof result.configured === 'boolean') return result;
+      return { configured: false, masked: '' };
+    } catch {
+      return { configured: false, masked: '' };
+    }
   },
 
   async setApiKey(key: string): Promise<void> {
