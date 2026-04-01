@@ -28,6 +28,7 @@ export interface CollaborationState {
   remoteMousePositions: Map<string, MousePosition>; // userId → {x, y}
   remoteTextCursors: Map<string, TextCursorPosition>; // userId → text cursor
   codeModeProposal: { userId: string; userName: string } | null;
+  aiLock: { userId: string; userName: string } | null; // who locked editing for AI fix
 }
 
 export interface CollaborationActions {
@@ -42,6 +43,8 @@ export interface CollaborationActions {
   rejectCodeMode: () => void;
   exitCodeMode: (content: string) => void;
   updateIdentity: (animal: string, colorHex: string) => void;
+  sendAiLock: () => void;
+  sendAiUnlock: () => void;
 }
 
 type MessageHandler = (msg: any) => void;
@@ -60,6 +63,7 @@ export function useCollaboration(
   const [remoteMousePositions, setRemoteMousePositions] = useState<Map<string, MousePosition>>(new Map());
   const [remoteTextCursors, setRemoteTextCursors] = useState<Map<string, TextCursorPosition>>(new Map());
   const [codeModeProposal, setCodeModeProposal] = useState<{ userId: string; userName: string } | null>(null);
+  const [aiLock, setAiLock] = useState<{ userId: string; userName: string } | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -198,6 +202,14 @@ export function useCollaboration(
           case 'code-mode-exited':
             onCodeModeExited?.(msg.content, msg.userId);
             break;
+
+          case 'ai-locked':
+            setAiLock({ userId: msg.userId, userName: msg.userName });
+            break;
+
+          case 'ai-unlocked':
+            setAiLock(null);
+            break;
         }
       };
     }
@@ -267,6 +279,14 @@ export function useCollaboration(
     send({ type: 'code-mode-exit', content });
   }, [send]);
 
+  const sendAiLock = useCallback(() => {
+    send({ type: 'ai-lock' });
+  }, [send]);
+
+  const sendAiUnlock = useCallback(() => {
+    send({ type: 'ai-unlock' });
+  }, [send]);
+
   const updateIdentityAction = useCallback((animal: string, colorHex: string) => {
     const updated = updateUserIdentity(animal, colorHex);
     setCurrentUser(updated);
@@ -282,6 +302,7 @@ export function useCollaboration(
     remoteMousePositions,
     remoteTextCursors,
     codeModeProposal,
+    aiLock,
     sendCursor,
     sendTextCursor,
     sendMousePosition,
@@ -293,5 +314,7 @@ export function useCollaboration(
     rejectCodeMode,
     exitCodeMode: exitCodeModeAction,
     updateIdentity: updateIdentityAction,
+    sendAiLock,
+    sendAiUnlock,
   };
 }

@@ -595,13 +595,29 @@ export default function Editor() {
   }, [codeMode]);
 
   // ── Fix with AI ──
-  const handleFixWithAI = useCallback(async () => {
+  const handleFixWithAI = useCallback(async (issueIndices?: number[]) => {
     if (!formApiRef.current || validationErrors.length === 0) return;
+
+    // If multiple users, confirm before locking
+    if (collab.roomUsers.length > 1 && !issueIndices) {
+      const otherCount = collab.roomUsers.length - 1;
+      const confirmed = window.confirm(
+        `This will temporarily lock editing for all ${otherCount} other user${otherCount > 1 ? 's' : ''} while AI fixes the issues. Continue?`
+      );
+      if (!confirmed) return;
+    }
+
+    // Lock editing for all users
+    collab.sendAiLock();
+
     setAiFixError('');
 
-    // Initialize progress: all issues start as 'pending'
+    // Determine which issues to fix
+    const toFix = issueIndices || validationErrors.map((_, i) => i);
+
+    // Initialize progress
     const progress = new Map<number, 'pending' | 'fixing' | 'fixed' | 'failed'>();
-    validationErrors.forEach((_, i) => progress.set(i, 'pending'));
+    toFix.forEach(i => progress.set(i, 'pending'));
     setAiFixProgress(new Map(progress));
 
     let currentMjml = JsonToMjml({
@@ -614,11 +630,11 @@ export default function Editor() {
     let fixedCount = 0;
 
     // Process each issue one at a time
-    for (let i = 0; i < validationErrors.length; i++) {
+    for (const i of toFix) {
       const err = validationErrors[i];
+      if (!err) continue;
       const errMsg = err.formattedMessage || err.message;
 
-      // Mark this issue as being fixed
       progress.set(i, 'fixing');
       setAiFixProgress(new Map(progress));
 
@@ -651,7 +667,6 @@ export default function Editor() {
         dispatch(template.actions.set({ ...values, content: parsed as any }));
         setEditorKey(k => k + 1);
 
-        // Re-run validation to update the error list
         setTimeout(() => {
           if (formApiRef.current) {
             runValidation(formApiRef.current.getState().values.content as any);
@@ -662,7 +677,7 @@ export default function Editor() {
         if (failedCount === 0) {
           Message.success(`All ${fixedCount} issues fixed by AI.`);
         } else {
-          Message.success(`${fixedCount} issue${fixedCount > 1 ? 's' : ''} fixed. ${failedCount} could not be resolved.`);
+          Message.success(`${fixedCount} fixed. ${failedCount} could not be resolved.`);
         }
       } catch (err: any) {
         setAiFixError(err?.message || 'Failed to apply corrected MJML.');
@@ -670,7 +685,10 @@ export default function Editor() {
     } else {
       setAiFixError('AI could not resolve any issues.');
     }
-  }, [validationErrors, savedArticleId, dispatch, runValidation]);
+
+    // Unlock editing
+    collab.sendAiUnlock();
+  }, [validationErrors, savedArticleId, dispatch, runValidation, collab]);
 
   // ── Loading ──
   if (!templateData && loading) {
@@ -904,6 +922,24 @@ export default function Editor() {
                 </header>
 
                 <CollaborationSync collab={collab} />
+
+                {/* AI lock overlay — shown when another user is running AI fix */}
+                {collab.aiLock && collab.aiLock.userId !== collab.currentUser.userId && (
+                  <div style={{
+                    position: 'fixed', inset: 0, zIndex: 9998,
+                    background: 'rgba(0,0,0,0.4)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <div className='bg-white rounded-lg shadow-xl p-6 text-center max-w-sm'>
+                      <Loader2 size={32} className='text-purple-500 animate-spin mx-auto mb-3' />
+                      <p className='text-gray-900 font-semibold'>AI is fixing validation issues</p>
+                      <p className='text-gray-500 text-sm mt-1'>
+                        {collab.aiLock.userName} is using AI to fix MJML issues. Editing is temporarily locked.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {codeMode ? (
                   <MjmlCodeEditor
                     mjmlString={codeMjml}
@@ -1015,6 +1051,15 @@ export default function Editor() {
                                   {status === 'failed' && <span className='text-red-500 font-medium'>Could not fix</span>}
                                 </div>
                               </div>
+                              {!status && aiKeyConfigured && !aiFixRunning && (
+                                <button
+                                  className='shrink-0 inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-purple-600 bg-purple-50 rounded hover:bg-purple-100 transition-colors'
+                                  onClick={() => handleFixWithAI([i])}
+                                  title='Fix this issue with AI'
+                                >
+                                  <Wand2 size={11} /> Fix
+                                </button>
+                              )}
                             </div>
                           );
                         })}
