@@ -465,9 +465,23 @@ wss.on('connection', (ws) => {
     }
   });
 
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
   ws.on('close', () => handleDisconnect(ws));
   ws.on('error', () => handleDisconnect(ws));
 });
+
+// Heartbeat: detect dead connections every 10 seconds
+setInterval(() => {
+  wss.clients.forEach(ws => {
+    if (!ws.isAlive) {
+      handleDisconnect(ws);
+      return ws.terminate();
+    }
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, 10000);
 
 function handleDisconnect(ws) {
   const found = findClient(ws);
