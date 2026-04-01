@@ -402,6 +402,18 @@ wss.on('connection', (ws) => {
         broadcastToRoom(found.roomId, { type: 'text-cursor-moved', userId: found.client.user.userId, focusIdx: msg.focusIdx, offset: msg.offset, endOffset: msg.endOffset, nodeIndex: msg.nodeIndex }, ws);
         break;
       }
+      case 'ai-lock': {
+        const found = findClient(ws);
+        if (!found) return;
+        broadcastToRoom(found.roomId, { type: 'ai-locked', userId: found.client.user.userId, userName: found.client.user.name }, ws);
+        break;
+      }
+      case 'ai-unlock': {
+        const found = findClient(ws);
+        if (!found) return;
+        broadcastToRoom(found.roomId, { type: 'ai-unlocked', userId: found.client.user.userId }, ws);
+        break;
+      }
       case 'content-change': {
         const found = findClient(ws);
         if (!found) return;
