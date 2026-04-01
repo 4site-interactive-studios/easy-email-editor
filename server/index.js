@@ -340,7 +340,7 @@ wss.on('connection', (ws) => {
       case 'text-cursor': {
         const found = findClient(ws);
         if (!found) return;
-        broadcastToRoom(found.roomId, { type: 'text-cursor-moved', userId: found.client.user.userId, focusIdx: msg.focusIdx, offset: msg.offset, nodeIndex: msg.nodeIndex }, ws);
+        broadcastToRoom(found.roomId, { type: 'text-cursor-moved', userId: found.client.user.userId, focusIdx: msg.focusIdx, offset: msg.offset, endOffset: msg.endOffset, nodeIndex: msg.nodeIndex }, ws);
         break;
       }
       case 'content-change': {

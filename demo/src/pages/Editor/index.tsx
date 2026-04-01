@@ -183,7 +183,6 @@ function CollaborationSync({ collab }: { collab: ReturnType<typeof useCollaborat
       const sel = shadowRoot.getSelection ? (shadowRoot as any).getSelection() : document.getSelection();
       if (!sel || sel.rangeCount === 0) return;
       const range = sel.getRangeAt(0);
-      if (!range.collapsed) return; // Only track caret, not selections
 
       // Find which contenteditable this is in
       let node = range.startContainer as HTMLElement;
@@ -195,20 +194,23 @@ function CollaborationSync({ collab }: { collab: ReturnType<typeof useCollaborat
       const blockIdx = node.getAttribute('data-content_editable-idx');
       if (!blockIdx) return;
 
-      // Calculate offset within the contenteditable's text content
-      const treeWalker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, null);
-      let offset = 0;
-      let nodeIndex = 0;
-      while (treeWalker.nextNode()) {
-        if (treeWalker.currentNode === range.startContainer) {
-          offset += range.startOffset;
-          break;
+      // Calculate start offset within the contenteditable's text content
+      const calcOffset = (container: HTMLElement, targetNode: Node, targetOffset: number): number => {
+        const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+        let total = 0;
+        while (walker.nextNode()) {
+          if (walker.currentNode === targetNode) {
+            return total + targetOffset;
+          }
+          total += (walker.currentNode as Text).length;
         }
-        offset += (treeWalker.currentNode as Text).length;
-        nodeIndex++;
-      }
+        return total;
+      };
 
-      collab.sendTextCursor({ focusIdx: blockIdx, offset, nodeIndex });
+      const startOffset = calcOffset(node, range.startContainer, range.startOffset);
+      const endOffset = range.collapsed ? -1 : calcOffset(node, range.endContainer, range.endOffset);
+
+      collab.sendTextCursor({ focusIdx: blockIdx, offset: startOffset, endOffset, nodeIndex: 0 });
     };
 
     // selectionchange fires on the document, not the shadow root
