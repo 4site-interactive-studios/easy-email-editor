@@ -244,6 +244,8 @@ export default function Editor() {
   const [aiFixProgress, setAiFixProgress] = useState<Map<number, 'pending' | 'fixing' | 'fixed' | 'failed'>>(new Map());
   const [aiFixError, setAiFixError] = useState('');
   const [aiKeyConfigured, setAiKeyConfigured] = useState(false);
+  const [aiLog, setAiLog] = useState<Array<{ type: 'thinking' | 'text' | 'status'; content: string }>>([]);
+  const [showAiLog, setShowAiLog] = useState(false);
   const aiFixRunning = Array.from(aiFixProgress.values()).some(s => s === 'fixing' || s === 'pending');
   const validationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -611,6 +613,8 @@ export default function Editor() {
     collab.sendAiLock();
 
     setAiFixError('');
+    setAiLog([]);
+    setShowAiLog(true);
 
     // Determine which issues to fix
     const toFix = issueIndices || validationErrors.map((_, i) => i);
@@ -637,9 +641,21 @@ export default function Editor() {
 
       progress.set(i, 'fixing');
       setAiFixProgress(new Map(progress));
+      setAiLog(prev => [...prev, { type: 'status', content: `Fixing: ${errMsg}` }]);
 
       try {
-        const result = await api.fixMjmlWithAI(currentMjml, [errMsg]);
+        const result = await api.fixMjmlWithAI(
+          currentMjml,
+          [errMsg],
+          (thinking) => setAiLog(prev => {
+            const last = prev[prev.length - 1];
+            if (last?.type === 'thinking') {
+              return [...prev.slice(0, -1), { type: 'thinking', content: last.content + thinking }];
+            }
+            return [...prev, { type: 'thinking', content: thinking }];
+          }),
+          () => {}, // text chunks not shown (it's raw MJML)
+        );
         if (result.mjml && result.mjml.trim()) {
           currentMjml = result.mjml.trim();
           progress.set(i, 'fixed');
@@ -1066,6 +1082,34 @@ export default function Editor() {
                       </div>
                     )}
                   </div>
+                  {/* AI Activity Log */}
+                  {aiLog.length > 0 && (
+                    <div className='border-t border-gray-200'>
+                      <button
+                        className='w-full px-6 py-2 text-xs font-medium text-gray-500 hover:bg-gray-50 flex items-center gap-1'
+                        onClick={() => setShowAiLog(v => !v)}
+                      >
+                        {showAiLog ? '▼' : '▶'} AI Activity ({aiLog.length} entries)
+                      </button>
+                      {showAiLog && (
+                        <div className='px-6 pb-3 max-h-[30vh] overflow-y-auto'>
+                          <div className='space-y-1.5'>
+                            {aiLog.map((entry, i) => (
+                              <div key={i} className={`text-xs font-mono rounded px-2 py-1 whitespace-pre-wrap ${
+                                entry.type === 'thinking' ? 'bg-purple-50 text-purple-700 border-l-2 border-purple-300'
+                                  : entry.type === 'status' ? 'bg-blue-50 text-blue-700 font-sans font-medium'
+                                    : 'bg-gray-50 text-gray-600'
+                              }`}>
+                                {entry.type === 'thinking' && <span className='text-purple-400 font-sans text-[10px]'>thinking: </span>}
+                                {entry.content}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className='px-6 py-3 border-t border-gray-200'>
                     {aiFixError && (
                       <div className='text-sm text-red-600 mb-2'>{aiFixError}</div>

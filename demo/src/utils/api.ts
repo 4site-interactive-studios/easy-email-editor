@@ -110,10 +110,48 @@ export const api = {
 
   // ── AI ──
 
-  async fixMjmlWithAI(mjml: string, errors: string[]): Promise<{ mjml: string }> {
-    return request('/ai/fix-mjml', {
+  async fixMjmlWithAI(
+    mjml: string,
+    errors: string[],
+    onThinking?: (text: string) => void,
+    onText?: (text: string) => void,
+  ): Promise<{ mjml: string }> {
+    const res = await fetch(`${BASE}/ai/fix-mjml`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mjml, errors }),
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `API error: ${res.status}`);
+    }
+
+    // Parse SSE stream
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalMjml = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const event = JSON.parse(line.substring(6));
+          if (event.type === 'thinking') onThinking?.(event.text);
+          else if (event.type === 'text') onText?.(event.text);
+          else if (event.type === 'done') finalMjml = event.mjml;
+          else if (event.type === 'error') throw new Error(event.error);
+        } catch (e) {
+          if (e instanceof Error && e.message !== 'error') throw e;
+        }
+      }
+    }
+
+    return { mjml: finalMjml };
   },
 };
