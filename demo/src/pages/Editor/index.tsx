@@ -241,9 +241,10 @@ export default function Editor() {
   // MJML validation
   const [validationErrors, setValidationErrors] = useState<Array<{ line: number; message: string; tagName: string; formattedMessage: string }>>([]);
   const [showValidation, setShowValidation] = useState(false);
-  const [aiFixing, setAiFixing] = useState(false);
+  const [aiFixProgress, setAiFixProgress] = useState<Map<number, 'pending' | 'fixing' | 'fixed' | 'failed'>>(new Map());
   const [aiFixError, setAiFixError] = useState('');
   const [aiKeyConfigured, setAiKeyConfigured] = useState(false);
+  const aiFixRunning = Array.from(aiFixProgress.values()).some(s => s === 'fixing' || s === 'pending');
   const validationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Revision history
@@ -596,31 +597,80 @@ export default function Editor() {
   // ── Fix with AI ──
   const handleFixWithAI = useCallback(async () => {
     if (!formApiRef.current || validationErrors.length === 0) return;
-    setAiFixing(true);
     setAiFixError('');
-    try {
-      const values = formApiRef.current.getState().values;
-      const mjml = JsonToMjml({ data: values.content, mode: 'production', context: values.content, beautify: true });
-      const errorMessages = validationErrors.map(e => e.formattedMessage || e.message);
-      const result = await api.fixMjmlWithAI(mjml, errorMessages);
-      if (!result.mjml) throw new Error('No corrected MJML returned');
-      const parsed = MjmlToJson(result.mjml);
-      if (savedArticleId) {
-        await saveTemplate(savedArticleId, { ...values, content: parsed as any });
-        lastSavedContentRef.current = JSON.stringify(parsed);
-        lastScheduledContentRef.current = lastSavedContentRef.current;
-        lastBroadcastContentRef.current = lastSavedContentRef.current;
+
+    // Initialize progress: all issues start as 'pending'
+    const progress = new Map<number, 'pending' | 'fixing' | 'fixed' | 'failed'>();
+    validationErrors.forEach((_, i) => progress.set(i, 'pending'));
+    setAiFixProgress(new Map(progress));
+
+    let currentMjml = JsonToMjml({
+      data: formApiRef.current.getState().values.content,
+      mode: 'production',
+      context: formApiRef.current.getState().values.content,
+      beautify: true,
+    });
+
+    let fixedCount = 0;
+
+    // Process each issue one at a time
+    for (let i = 0; i < validationErrors.length; i++) {
+      const err = validationErrors[i];
+      const errMsg = err.formattedMessage || err.message;
+
+      // Mark this issue as being fixed
+      progress.set(i, 'fixing');
+      setAiFixProgress(new Map(progress));
+
+      try {
+        const result = await api.fixMjmlWithAI(currentMjml, [errMsg]);
+        if (result.mjml && result.mjml.trim()) {
+          currentMjml = result.mjml.trim();
+          progress.set(i, 'fixed');
+          fixedCount++;
+        } else {
+          progress.set(i, 'failed');
+        }
+      } catch {
+        progress.set(i, 'failed');
       }
-      dispatch(template.actions.set({ ...values, content: parsed as any }));
-      setEditorKey(k => k + 1);
-      setShowValidation(false);
-      Message.success('Validation issues fixed by AI.');
-    } catch (err: any) {
-      setAiFixError(err?.message || 'Failed to fix MJML with AI.');
-    } finally {
-      setAiFixing(false);
+      setAiFixProgress(new Map(progress));
     }
-  }, [validationErrors, savedArticleId, dispatch]);
+
+    // Apply the final corrected MJML
+    if (fixedCount > 0) {
+      try {
+        const parsed = MjmlToJson(currentMjml);
+        const values = formApiRef.current!.getState().values;
+        if (savedArticleId) {
+          await saveTemplate(savedArticleId, { ...values, content: parsed as any });
+          lastSavedContentRef.current = JSON.stringify(parsed);
+          lastScheduledContentRef.current = lastSavedContentRef.current;
+          lastBroadcastContentRef.current = lastSavedContentRef.current;
+        }
+        dispatch(template.actions.set({ ...values, content: parsed as any }));
+        setEditorKey(k => k + 1);
+
+        // Re-run validation to update the error list
+        setTimeout(() => {
+          if (formApiRef.current) {
+            runValidation(formApiRef.current.getState().values.content as any);
+          }
+        }, 500);
+
+        const failedCount = Array.from(progress.values()).filter(s => s === 'failed').length;
+        if (failedCount === 0) {
+          Message.success(`All ${fixedCount} issues fixed by AI.`);
+        } else {
+          Message.success(`${fixedCount} issue${fixedCount > 1 ? 's' : ''} fixed. ${failedCount} could not be resolved.`);
+        }
+      } catch (err: any) {
+        setAiFixError(err?.message || 'Failed to apply corrected MJML.');
+      }
+    } else {
+      setAiFixError('AI could not resolve any issues.');
+    }
+  }, [validationErrors, savedArticleId, dispatch, runValidation]);
 
   // ── Loading ──
   if (!templateData && loading) {
@@ -938,18 +988,36 @@ export default function Editor() {
                     ) : (
                       <div className='space-y-3'>
                         <p className='text-sm text-gray-500'>{validationErrors.length} issue{validationErrors.length > 1 ? 's' : ''} found:</p>
-                        {validationErrors.map((err, i) => (
-                          <div key={i} className='flex gap-3 p-3 bg-amber-50 border border-amber-200 rounded-md'>
-                            <AlertTriangle size={16} className='text-amber-500 mt-0.5 shrink-0' />
-                            <div className='min-w-0'>
-                              <p className='text-sm text-gray-800'>{err.formattedMessage || err.message}</p>
-                              <div className='flex gap-3 mt-1 text-xs text-gray-500'>
-                                {err.tagName && <span className='font-mono bg-gray-100 px-1.5 py-0.5 rounded'>{'<'}mj-{err.tagName}{'>'}</span>}
-                                {err.line > 0 && <span>Line {err.line}</span>}
+                        {validationErrors.map((err, i) => {
+                          const status = aiFixProgress.get(i);
+                          const bgClass = status === 'fixed' ? 'bg-green-50 border-green-200'
+                            : status === 'failed' ? 'bg-red-50 border-red-200'
+                              : status === 'fixing' ? 'bg-blue-50 border-blue-200'
+                                : 'bg-amber-50 border-amber-200';
+                          return (
+                            <div key={i} className={`flex gap-3 p-3 rounded-md border transition-colors ${bgClass}`}>
+                              <div className='mt-0.5 shrink-0'>
+                                {status === 'fixing' ? <Loader2 size={16} className='text-blue-500 animate-spin' />
+                                  : status === 'fixed' ? <CheckCircle size={16} className='text-green-500' />
+                                    : status === 'failed' ? <X size={16} className='text-red-400' />
+                                      : status === 'pending' ? <div className='w-4 h-4 rounded-full border-2 border-gray-300' />
+                                        : <AlertTriangle size={16} className='text-amber-500' />}
+                              </div>
+                              <div className='min-w-0 flex-1'>
+                                <p className={`text-sm ${status === 'fixed' ? 'text-green-700 line-through' : 'text-gray-800'}`}>
+                                  {err.formattedMessage || err.message}
+                                </p>
+                                <div className='flex gap-3 mt-1 text-xs text-gray-500'>
+                                  {err.tagName && <span className='font-mono bg-gray-100 px-1.5 py-0.5 rounded'>{'<'}mj-{err.tagName}{'>'}</span>}
+                                  {err.line > 0 && <span>Line {err.line}</span>}
+                                  {status === 'fixing' && <span className='text-blue-600 font-medium'>Fixing...</span>}
+                                  {status === 'fixed' && <span className='text-green-600 font-medium'>Fixed</span>}
+                                  {status === 'failed' && <span className='text-red-500 font-medium'>Could not fix</span>}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -962,12 +1030,12 @@ export default function Editor() {
                         <button
                           className='inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-md hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
                           onClick={handleFixWithAI}
-                          disabled={aiFixing}
+                          disabled={aiFixRunning}
                         >
-                          {aiFixing ? (
-                            <><Loader2 size={14} className='animate-spin' /> Fixing...</>
+                          {aiFixRunning ? (
+                            <><Loader2 size={14} className='animate-spin' /> Fixing issues...</>
                           ) : (
-                            <><Wand2 size={14} /> Fix with AI</>
+                            <><Wand2 size={14} /> Fix all with AI</>
                           )}
                         </button>
                       ) : (
