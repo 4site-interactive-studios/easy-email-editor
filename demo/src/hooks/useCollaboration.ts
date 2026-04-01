@@ -232,7 +232,7 @@ export function useCollaboration(
     const now = Date.now();
     const dx = Math.abs(x - last.x);
     const dy = Math.abs(y - last.y);
-    if ((dx > 3 || dy > 3) && now - last.t > 50) {
+    if ((dx > 2 || dy > 2) && now - last.t > 16) {
       lastMouseRef.current = { x, y, t: now };
       send({ type: 'mouse-position', x, y });
     }

@@ -610,15 +610,17 @@ export default function Editor() {
           {({ values }, helper) => {
             formApiRef.current = helper;
 
-            // ── Real-time broadcast (200ms debounce) ──
-            // Sends content changes to other editors immediately, separate from autosave
+            // ── Real-time broadcast (300ms debounce) ──
+            // Batches rapid keystrokes into single updates to reduce partial-render flicker.
+            // The 300ms window lets the editor's internal debounces (200-300ms) settle so
+            // each broadcast contains the fully-formed text, not intermediate states.
             const contentJson = JSON.stringify(values.content);
             if (savedArticleId && !applyingRemotePatchRef.current && contentJson !== lastBroadcastContentRef.current) {
               lastBroadcastContentRef.current = contentJson;
               if (broadcastTimerRef.current) clearTimeout(broadcastTimerRef.current);
               broadcastTimerRef.current = setTimeout(() => {
                 collab.sendContentChange({ path: 'content', value: values.content, timestamp: Date.now() });
-              }, 200);
+              }, 300);
             }
 
             // ── Autosave to database (2s debounce) ──

@@ -276,7 +276,7 @@ export function RemoteCursors({
                 top: offsetY + pos.y,
                 pointerEvents: 'none',
                 zIndex: 9999,
-                transition: 'left 0.08s linear, top 0.08s linear',
+                transition: 'none',
               }}
             >
               <CursorArrow color={user.color} />
