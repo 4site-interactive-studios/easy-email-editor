@@ -324,8 +324,9 @@ export default function Editor() {
     } catch {}
   }, [dispatch]);
 
+  const multiUserEnabled = getAppSettings().multiUserEnabled;
   const collab = useCollaboration(
-    savedArticleId ? String(savedArticleId) : null,
+    multiUserEnabled && savedArticleId ? String(savedArticleId) : null,
     onCollabContentUpdate,
     onCollabCodeModeEntered,
     onCollabCodeModeExited,
@@ -902,13 +903,15 @@ export default function Editor() {
                       onChange={e => helper.change('subject', e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
                     />
-                    {/* Avatars */}
-                    <AvatarBar
-                      currentUser={collab.currentUser}
-                      roomUsers={collab.roomUsers}
-                      connected={collab.connected}
-                      onUpdateIdentity={collab.updateIdentity}
-                    />
+                    {/* Avatars (only when multi-user is enabled) */}
+                    {multiUserEnabled && (
+                      <AvatarBar
+                        currentUser={collab.currentUser}
+                        roomUsers={collab.roomUsers}
+                        connected={collab.connected}
+                        onUpdateIdentity={collab.updateIdentity}
+                      />
+                    )}
                   </div>
 
                   <div className='flex items-center gap-2'>
@@ -1060,18 +1063,20 @@ export default function Editor() {
                     <SimpleLayout showSourceCode={false} initialLeftHidden={getAppSettings().hideIconToolbar} blockMjmlPanel={<BlockMjmlEditor />}>
                       <EmailEditor />
                     </SimpleLayout>
-                    <RemoteCursors
-                      remoteCursors={collab.remoteCursors}
-                      lockedBlocks={collab.lockedBlocks}
-                      remoteMousePositions={collab.remoteMousePositions}
-                      remoteTextCursors={collab.remoteTextCursors}
-                      currentUserId={collab.currentUser.userId}
-                      roomUsers={collab.roomUsers}
-                      showCursors={showCursors}
-                      onToggleCursors={() => setShowCursors(v => !v)}
-                      editorContainerRef={editorContainerRef as any}
-                      onMouseMove={(x, y) => collab.sendMousePosition(x, y)}
-                    />
+                    {multiUserEnabled && (
+                      <RemoteCursors
+                        remoteCursors={collab.remoteCursors}
+                        lockedBlocks={collab.lockedBlocks}
+                        remoteMousePositions={collab.remoteMousePositions}
+                        remoteTextCursors={collab.remoteTextCursors}
+                        currentUserId={collab.currentUser.userId}
+                        roomUsers={collab.roomUsers}
+                        showCursors={showCursors}
+                        onToggleCursors={() => setShowCursors(v => !v)}
+                        editorContainerRef={editorContainerRef as any}
+                        onMouseMove={(x, y) => collab.sendMousePosition(x, y)}
+                      />
+                    )}
                     <BlockInsertButtons containerRef={editorContainerRef as React.RefObject<HTMLElement>} />
                   </div>
                 )}

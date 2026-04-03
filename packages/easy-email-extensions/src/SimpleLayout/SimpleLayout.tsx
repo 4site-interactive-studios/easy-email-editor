@@ -286,8 +286,9 @@ export const SimpleLayout: React.FC<
             minWidth: rightCollapsed ? 32 : RIGHT_MIN,
             maxWidth: rightCollapsed ? 32 : RIGHT_MAX,
             width: rightCollapsed ? 32 : rightWidth,
-            overflow: 'visible',
+            overflow: 'hidden',
             position: 'relative',
+            flexShrink: 0,
           }}
           className={styles.rightSide}
         >
@@ -321,8 +322,9 @@ export const SimpleLayout: React.FC<
               height: '100%',
               borderLeft: 'none',
               display: rightCollapsed ? 'none' : undefined,
+              overflow: 'hidden',
             }}
-            bodyStyle={{ padding: 0 }}
+            bodyStyle={{ padding: 0, height: '100%', overflow: 'hidden' }}
             className={styles.customScrollBarV2}
           >
             <Tabs className={styles.layoutTabs}>

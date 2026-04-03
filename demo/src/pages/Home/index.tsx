@@ -14,6 +14,7 @@ import { nowUnix } from '@demo/utils/time';
 import { MjmlToJson } from 'easy-email-extensions';
 import { api } from '@demo/utils/api';
 import { IArticle } from '@demo/services/article';
+import { getAppSettings } from '@demo/hooks/useAppSettings';
 
 const THUMB_CACHE_KEY = 'template_thumbnail_cache';
 
@@ -47,13 +48,17 @@ export default function Home() {
     api.getUserTemplates().then(setUserTemplates).catch(() => {});
   }, [dispatch]);
 
+  const multiUserEnabled = getAppSettings().multiUserEnabled;
+
   // Poll for presence (who's editing) and template list updates every 5s
   useEffect(() => {
     const poll = async () => {
-      try {
-        const res = await fetch('/api/presence');
-        if (res.ok) setPresence(await res.json());
-      } catch {}
+      if (multiUserEnabled) {
+        try {
+          const res = await fetch('/api/presence');
+          if (res.ok) setPresence(await res.json());
+        } catch {}
+      }
       // Re-fetch template list so titles/thumbnails update
       dispatch(templateList.actions.fetch(undefined));
     };
