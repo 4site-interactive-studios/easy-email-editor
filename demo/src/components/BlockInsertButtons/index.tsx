@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Type, Image, Square, Minus, ArrowDownUp, Columns, LayoutTemplate, ChevronRight, Table2, ListCollapse, Navigation, Share2, Code, Box } from 'lucide-react';
-import { BlockManager, BasicType } from 'easy-email-core';
+import { Plus, Type, Image, Square, Minus, ArrowDownUp, Columns, LayoutTemplate, ChevronRight, ChevronUp, ChevronDown, Table2, ListCollapse, Navigation, Share2, Code, Box } from 'lucide-react';
+import { BlockManager, BasicType, getSiblingIdx } from 'easy-email-core';
 import { useBlock, useFocusIdx, getBlockNodeByIdx } from 'easy-email-editor';
 import { get } from 'lodash';
 
@@ -26,7 +26,6 @@ const BLOCK_ICONS: Record<string, React.ReactNode> = {
   [BasicType.RAW]: <Code size={16} />,
 };
 
-// Block types we don't want to show in the insert popup
 const HIDDEN_BLOCK_TYPES = new Set([
   BasicType.PAGE,
   BasicType.TEMPLATE,
@@ -35,7 +34,6 @@ const HIDDEN_BLOCK_TYPES = new Set([
   BasicType.ACCORDION_TEXT,
 ]);
 
-// Nice display names
 const BLOCK_NAMES: Record<string, string> = {
   [BasicType.TEXT]: 'Text',
   [BasicType.IMAGE]: 'Image',
@@ -55,47 +53,51 @@ const BLOCK_NAMES: Record<string, string> = {
   [BasicType.RAW]: 'Raw HTML',
 };
 
+function getBlockName(block: any): string {
+  if (!block) return 'block';
+  return BlockManager.getBlockByType(block.type)?.name || block.type || 'block';
+}
+
 interface BlockInsertButtonsProps {
   containerRef: React.RefObject<HTMLElement>;
 }
 
-/**
- * Renders + buttons above and below the currently focused block in the visual editor.
- * Clicking opens a popup with valid block types that can be inserted at that position.
- */
 export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
   const { focusIdx } = useFocusIdx();
-  const { addBlock, values } = useBlock();
+  const { addBlock, moveBlock, values } = useBlock();
   const [popup, setPopup] = useState<'above' | 'below' | null>(null);
   const [rect, setRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const popupRef = useRef<HTMLDivElement>(null);
 
-  // Get the parent block's type to determine valid children
+  // Get the parent block info
   const parentInfo = useMemo(() => {
     if (!focusIdx || focusIdx === 'content') return null;
-
-    // Parse parent idx and child index from focusIdx
-    // focusIdx format: "content.children.[0].children.[1]"
     const match = focusIdx.match(/^(.+)\.children\.\[(\d+)\]$/);
     if (!match) return null;
 
     const parentIdx = match[1];
     const childIndex = parseInt(match[2], 10);
-
-    // Get parent block
     const parentBlock = get(values, parentIdx);
+    const childCount = parentBlock?.children?.length ?? 0;
+
+    const prevSibling = childIndex > 0 ? parentBlock?.children?.[childIndex - 1] : null;
+    const nextSibling = childIndex < childCount - 1 ? parentBlock?.children?.[childIndex + 1] : null;
 
     return {
       parentIdx,
       childIndex,
+      childCount,
       parentType: parentBlock?.type as string | undefined,
+      canMoveUp: childIndex > 0,
+      canMoveDown: childIndex < childCount - 1,
+      upLabel: prevSibling ? `Move before the ${getBlockName(prevSibling)}` : '',
+      downLabel: nextSibling ? `Move after the ${getBlockName(nextSibling)}` : '',
     };
   }, [focusIdx, values]);
 
-  // Valid block types for insertion (blocks whose validParentType includes the parent's type)
+  // Valid block types for insertion
   const validBlocks = useMemo(() => {
     if (!parentInfo?.parentType) return [];
-
     return BlockManager.getBlocks()
       .filter(block => {
         if (HIDDEN_BLOCK_TYPES.has(block.type as BasicType)) return false;
@@ -108,25 +110,17 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
       });
   }, [parentInfo?.parentType]);
 
-  // Track the focused block's DOM rect using the editor's built-in utility
+  // Track the focused block's DOM rect
   useEffect(() => {
     if (!focusIdx || focusIdx === 'content' || !containerRef.current) {
       setRect(null);
       return;
     }
-
     const updateRect = () => {
       const container = containerRef.current;
       if (!container) return;
-
-      // Use the editor's built-in getBlockNodeByIdx which searches the shadow DOM
       const el = getBlockNodeByIdx(focusIdx);
-      if (!el) {
-        setRect(null);
-        return;
-      }
-
-      // getBoundingClientRect is viewport-relative; convert to container-relative
+      if (!el) { setRect(null); return; }
       const elRect = el.getBoundingClientRect();
       const containerRect = container.getBoundingClientRect();
       setRect({
@@ -136,26 +130,17 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
         height: elRect.height,
       });
     };
-
-    // Small delay to let the editor render the selection
     const timer = setTimeout(updateRect, 100);
     const interval = setInterval(updateRect, 200);
-
-    // Also update on scroll inside the shadow DOM
     const editorRoot = document.getElementById('VisualEditorEditMode');
     const shadowRoot = editorRoot?.shadowRoot;
     const scrollContainer = shadowRoot?.querySelector('.shadow-container') || shadowRoot;
     const onScroll = () => updateRect();
-    if (scrollContainer) {
-      scrollContainer.addEventListener('scroll', onScroll, true);
-    }
-
+    if (scrollContainer) scrollContainer.addEventListener('scroll', onScroll, true);
     return () => {
       clearTimeout(timer);
       clearInterval(interval);
-      if (scrollContainer) {
-        scrollContainer.removeEventListener('scroll', onScroll, true);
-      }
+      if (scrollContainer) scrollContainer.removeEventListener('scroll', onScroll, true);
     };
   }, [focusIdx, containerRef]);
 
@@ -163,98 +148,125 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
   useEffect(() => {
     if (!popup) return;
     const handleClick = (e: MouseEvent) => {
-      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
-        setPopup(null);
-      }
+      if (popupRef.current && !popupRef.current.contains(e.target as Node)) setPopup(null);
     };
-    // Use a small delay so the button click doesn't immediately close it
-    const timer = setTimeout(() => {
-      document.addEventListener('mousedown', handleClick);
-    }, 50);
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener('mousedown', handleClick);
-    };
+    const timer = setTimeout(() => document.addEventListener('mousedown', handleClick), 50);
+    return () => { clearTimeout(timer); document.removeEventListener('mousedown', handleClick); };
   }, [popup]);
 
-  // Close popup when focus changes
-  useEffect(() => {
-    setPopup(null);
-  }, [focusIdx]);
+  useEffect(() => { setPopup(null); }, [focusIdx]);
 
   const handleInsert = useCallback((blockType: string, position: 'above' | 'below') => {
     if (!parentInfo) return;
-
-    const positionIndex = position === 'above'
-      ? parentInfo.childIndex
-      : parentInfo.childIndex + 1;
-
     addBlock({
       type: blockType,
       parentIdx: parentInfo.parentIdx,
-      positionIndex,
+      positionIndex: position === 'above' ? parentInfo.childIndex : parentInfo.childIndex + 1,
     });
-
     setPopup(null);
   }, [parentInfo, addBlock]);
 
+  const handleMoveUp = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    moveBlock(focusIdx, getSiblingIdx(focusIdx, -1));
+  }, [focusIdx, moveBlock]);
+
+  const handleMoveDown = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    moveBlock(focusIdx, getSiblingIdx(focusIdx, 1));
+  }, [focusIdx, moveBlock]);
+
   if (!rect || !parentInfo || validBlocks.length === 0 || !containerRef.current) return null;
+
+  const centerX = rect.left + rect.width / 2;
+
+  // Shared small button styles
+  const smallBtn: React.CSSProperties = {
+    width: 24,
+    height: 24,
+    borderRadius: '50%',
+    border: '2px solid #fff',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+    padding: 0,
+    position: 'absolute',
+    zIndex: 15,
+  };
+
+  const plusBtnStyle: React.CSSProperties = {
+    ...smallBtn,
+    background: '#4f46e5',
+    color: '#fff',
+  };
+
+  const moveBtnStyle: React.CSSProperties = {
+    ...smallBtn,
+    background: 'var(--selected-color, #1890ff)',
+    color: '#fff',
+  };
 
   return createPortal(
     <>
-      {/* + button above */}
-      <button
-        style={{
-          position: 'absolute',
-          top: rect.top - 12,
-          left: rect.left + rect.width / 2,
-          transform: 'translateX(-50%)',
-          width: 24,
-          height: 24,
-          borderRadius: '50%',
-          background: '#4f46e5',
-          color: '#fff',
-          border: '2px solid #fff',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 15,
-          boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-          padding: 0,
-        }}
-        onClick={e => { e.stopPropagation(); setPopup(popup === 'above' ? null : 'above'); }}
-        title='Insert block above'
-      >
-        <Plus size={14} strokeWidth={3} />
-      </button>
+      {/* ── Top row: move up + insert above ── */}
+      <div style={{
+        position: 'absolute',
+        top: rect.top - 12,
+        left: centerX,
+        transform: 'translateX(-50%)',
+        display: 'flex',
+        gap: 4,
+        zIndex: 15,
+        pointerEvents: 'auto',
+      }}>
+        {parentInfo.canMoveUp && (
+          <button
+            style={moveBtnStyle}
+            onClick={handleMoveUp}
+            title={parentInfo.upLabel}
+          >
+            <ChevronUp size={14} strokeWidth={2.5} />
+          </button>
+        )}
+        <button
+          style={plusBtnStyle}
+          onClick={e => { e.stopPropagation(); setPopup(popup === 'above' ? null : 'above'); }}
+          title='Insert block above'
+        >
+          <Plus size={14} strokeWidth={3} />
+        </button>
+      </div>
 
-      {/* + button below */}
-      <button
-        style={{
-          position: 'absolute',
-          top: rect.top + rect.height - 12,
-          left: rect.left + rect.width / 2,
-          transform: 'translateX(-50%)',
-          width: 24,
-          height: 24,
-          borderRadius: '50%',
-          background: '#4f46e5',
-          color: '#fff',
-          border: '2px solid #fff',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 15,
-          boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-          padding: 0,
-        }}
-        onClick={e => { e.stopPropagation(); setPopup(popup === 'below' ? null : 'below'); }}
-        title='Insert block below'
-      >
-        <Plus size={14} strokeWidth={3} />
-      </button>
+      {/* ── Bottom row: insert below + move down ── */}
+      <div style={{
+        position: 'absolute',
+        top: rect.top + rect.height - 12,
+        left: centerX,
+        transform: 'translateX(-50%)',
+        display: 'flex',
+        gap: 4,
+        zIndex: 15,
+        pointerEvents: 'auto',
+      }}>
+        <button
+          style={plusBtnStyle}
+          onClick={e => { e.stopPropagation(); setPopup(popup === 'below' ? null : 'below'); }}
+          title='Insert block below'
+        >
+          <Plus size={14} strokeWidth={3} />
+        </button>
+        {parentInfo.canMoveDown && (
+          <button
+            style={moveBtnStyle}
+            onClick={handleMoveDown}
+            title={parentInfo.downLabel}
+          >
+            <ChevronDown size={14} strokeWidth={2.5} />
+          </button>
+        )}
+      </div>
 
       {/* Block type popup */}
       {popup && (
@@ -263,7 +275,7 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
           style={{
             position: 'absolute',
             top: popup === 'above' ? rect.top - 12 : rect.top + rect.height - 12,
-            left: rect.left + rect.width / 2 + 20,
+            left: centerX + 20,
             transform: 'translateY(-50%)',
             zIndex: 50,
             minWidth: 180,

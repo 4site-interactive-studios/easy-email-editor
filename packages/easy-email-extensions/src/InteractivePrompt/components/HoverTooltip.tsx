@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-import { getNodeTypeFromClassName, BlockManager, BasicType } from 'easy-email-core';
+import { getNodeTypeFromClassName, BlockManager } from 'easy-email-core';
 import { createPortal } from 'react-dom';
-import { getEditorRoot, useEditorContext, useFocusIdx, useHoverIdx, useLazyState, BlockAvatarWrapper } from 'easy-email-editor';
+import { getEditorRoot, useEditorContext, useFocusIdx, useHoverIdx, useLazyState } from 'easy-email-editor';
 import { awaitForElement } from '@extensions/utils/awaitForElement';
 
 export function HoverTooltip() {
@@ -50,9 +50,6 @@ export function HoverTooltip() {
       : null;
   }, [blockNode]);
 
-  const blockType = block?.type || '';
-  const isPage = blockType === BasicType.PAGE;
-
   if (focusIdx === hoverIdx && !isDragging) return null;
   if (!block || !blockNode) return null;
 
@@ -71,56 +68,6 @@ export function HoverTooltip() {
             pointerEvents: 'none',
           }}
         >
-          {/* Drag handle on the left side */}
-          {!isDragging && !isPage && lazyHoverIdx && (
-            <div
-              style={{
-                position: 'absolute',
-                zIndex: 9999,
-                left: -1,
-                top: '50%',
-                display: 'flex',
-              }}
-            >
-              <BlockAvatarWrapper
-                idx={lazyHoverIdx}
-                type={blockType}
-                action='move'
-              >
-                <div
-                  style={
-                    {
-                      position: 'absolute',
-                      backgroundColor: 'var(--hover-color)',
-                      color: '#ffffff',
-                      height: '26px',
-                      width: '26px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transform: 'translate(-50%, -50%)',
-                      borderRadius: '50%',
-                      cursor: 'grab',
-                      pointerEvents: 'auto',
-                      WebkitUserDrag: 'element',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                    } as any
-                  }
-                  title={`Drag to move ${block.name}`}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                    <circle cx="9" cy="5" r="1.5" />
-                    <circle cx="15" cy="5" r="1.5" />
-                    <circle cx="9" cy="12" r="1.5" />
-                    <circle cx="15" cy="12" r="1.5" />
-                    <circle cx="9" cy="19" r="1.5" />
-                    <circle cx="15" cy="19" r="1.5" />
-                  </svg>
-                </div>
-              </BlockAvatarWrapper>
-            </div>
-          )}
-
           <TipNode
             type={isDragging ? 'drag' : 'hover'}
             lineWidth={1}

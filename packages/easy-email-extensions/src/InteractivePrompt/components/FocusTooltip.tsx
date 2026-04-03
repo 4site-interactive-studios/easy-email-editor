@@ -171,7 +171,7 @@ export function FocusTooltip() {
 
   if (!focusBlockNode || !focusBlock) return null;
 
-  const hasButtons = !isPage && (moveInfo.canMoveUp || moveInfo.canMoveDown || moveInfo.canMoveOut || moveInfo.canMoveIn);
+  const hasButtons = !isPage && (moveInfo.canMoveOut || moveInfo.canMoveIn);
 
   const btnBase: React.CSSProperties = {
     backgroundColor: 'var(--selected-color)',
@@ -237,17 +237,9 @@ export function FocusTooltip() {
               onClick={e => e.stopPropagation()}
               onMouseDown={e => e.preventDefault()}
             >
-              {moveInfo.canMoveUp && (
-                <MoveButton
-                  style={btnBase}
-                  icon={<ArrowUp />}
-                  label={moveInfo.upLabel}
-                  onClick={handleMoveUp}
-                />
-              )}
               {moveInfo.canMoveOut && (
                 <MoveButton
-                  style={{ ...btnBase, borderTop: moveInfo.canMoveUp ? dividerStyle : undefined }}
+                  style={btnBase}
                   icon={<ArrowOut />}
                   label={moveInfo.outLabel}
                   onClick={handleMoveOut}
@@ -255,18 +247,10 @@ export function FocusTooltip() {
               )}
               {moveInfo.canMoveIn && (
                 <MoveButton
-                  style={{ ...btnBase, borderTop: (moveInfo.canMoveUp || moveInfo.canMoveOut) ? dividerStyle : undefined }}
+                  style={{ ...btnBase, borderTop: moveInfo.canMoveOut ? dividerStyle : undefined }}
                   icon={<ArrowIn />}
                   label={moveInfo.inLabel}
                   onClick={handleMoveIn}
-                />
-              )}
-              {moveInfo.canMoveDown && (
-                <MoveButton
-                  style={{ ...btnBase, borderTop: (moveInfo.canMoveUp || moveInfo.canMoveOut || moveInfo.canMoveIn) ? dividerStyle : undefined }}
-                  icon={<ArrowDown />}
-                  label={moveInfo.downLabel}
-                  onClick={handleMoveDown}
                 />
               )}
             </div>
