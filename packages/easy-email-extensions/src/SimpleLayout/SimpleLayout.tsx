@@ -4,6 +4,7 @@ import { useEditorProps, useFocusIdx } from 'easy-email-editor';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useWindowSize } from 'react-use';
 import { SourceCodePanel } from '../SourceCodePanel';
+import { BlockMjmlPanel } from '../BlockMjmlPanel';
 import { AttributePanel } from '../AttributePanel';
 import { BlockLayer, BlockLayerProps } from '../BlockLayer';
 import { InteractivePrompt } from '../InteractivePrompt';
@@ -96,6 +97,8 @@ export const SimpleLayout: React.FC<
     jsonReadOnly?: boolean;
     mjmlReadOnly?: boolean;
     defaultShowLayer?: boolean;
+    initialLeftHidden?: boolean;
+    blockMjmlPanel?: React.ReactNode;
     children: React.ReactNode | React.ReactElement;
   } & BlockLayerProps
 > = props => {
@@ -105,7 +108,7 @@ export const SimpleLayout: React.FC<
   const isNarrow = viewportWidth < 1280;
 
   const [collapsed, setCollapsed] = useState(() => !defaultShowLayer || isNarrow);
-  const [leftHidden, setLeftHidden] = useState(false);
+  const [leftHidden, setLeftHidden] = useState(props.initialLeftHidden ?? false);
   const [leftPeeking, setLeftPeeking] = useState(false);
   const leftPeekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [rightCollapsed, setRightCollapsed] = useState(() => isNarrow);
@@ -331,6 +334,17 @@ export const SimpleLayout: React.FC<
                 }
               >
                 <AttributePanel />
+              </Tabs.TabPane>
+              <Tabs.TabPane
+                destroyOnHide
+                key='Block MJML'
+                title={
+                  <div style={{ height: 31, lineHeight: '31px' }}>
+                    {t('Block MJML')}
+                  </div>
+                }
+              >
+                {props.blockMjmlPanel || <BlockMjmlPanel />}
               </Tabs.TabPane>
               {showSourceCode && (
                 <Tabs.TabPane

@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import Frame from '@demo/components/Frame';
 import templateList from '@demo/store/templateList';
-import { Plus, Search, X, FileCode } from 'lucide-react';
+import { Plus, Search, X, FileCode, LayoutTemplate } from 'lucide-react';
 import { CardItem } from './components/CardItem';
 import { history } from '@demo/utils/history';
 import templates from '@demo/config/templates.json';
@@ -39,8 +39,12 @@ export default function Home() {
   const [importError, setImportError] = useState('');
   const [importing, setImporting] = useState(false);
 
+  // User templates
+  const [userTemplates, setUserTemplates] = useState<IArticle[]>([]);
+
   useEffect(() => {
     dispatch(templateList.actions.fetch(undefined));
+    api.getUserTemplates().then(setUserTemplates).catch(() => {});
   }, [dispatch]);
 
   // Poll for presence (who's editing) and template list updates every 5s
@@ -161,11 +165,21 @@ export default function Home() {
     }
   }, [importName, mjmlSource, dispatch]);
 
+  const handleNewTemplate = useCallback(() => {
+    history.push('/editor?template=1');
+  }, []);
+
   const filteredList = search.trim()
     ? list.filter(item =>
         item.title.toLowerCase().includes(search.toLowerCase()),
       )
     : list;
+
+  const filteredUserTemplates = search.trim()
+    ? userTemplates.filter(item =>
+        item.title.toLowerCase().includes(search.toLowerCase()),
+      )
+    : userTemplates;
 
   return (
     <Frame
@@ -263,6 +277,43 @@ export default function Home() {
             {filteredList.map(item => (
               <CardItem data={item} key={item.article_id} activeUsers={presence[String(item.article_id)]} />
             ))}
+          </div>
+        )}
+
+        {/* My Templates */}
+        <div className='flex items-center gap-4 my-7'>
+          <hr className='flex-1 border-gray-200' />
+          <span className='text-gray-400 text-xs font-medium uppercase tracking-wide whitespace-nowrap'>
+            <LayoutTemplate size={12} className='inline mr-1 -mt-0.5' />
+            My Templates
+          </span>
+          <hr className='flex-1 border-gray-200' />
+        </div>
+        {filteredUserTemplates.length === 0 ? (
+          <div className='py-6 text-center'>
+            <p className='text-gray-400 text-sm mb-3'>
+              No custom templates yet. Templates let you save reusable starting points.
+            </p>
+            <button
+              className='inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100 transition-colors'
+              onClick={handleNewTemplate}
+            >
+              <Plus size={14} />
+              New Template
+            </button>
+          </div>
+        ) : (
+          <div className='flex flex-wrap gap-5 mb-2'>
+            {filteredUserTemplates.map(item => (
+              <CardItem data={item} key={item.article_id} isTemplate activeUsers={presence[String(item.article_id)]} />
+            ))}
+            <button
+              className='flex flex-col items-center justify-center w-[180px] min-h-[160px] border-2 border-dashed border-purple-200 rounded-lg text-purple-400 hover:border-purple-400 hover:text-purple-600 hover:bg-purple-50/50 transition-colors cursor-pointer'
+              onClick={handleNewTemplate}
+            >
+              <Plus size={24} />
+              <span className='text-xs mt-1 font-medium'>New Template</span>
+            </button>
           </div>
         )}
 

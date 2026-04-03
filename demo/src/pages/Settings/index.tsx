@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Frame from '@demo/components/Frame';
-import { Key, Trash2, Check, ExternalLink } from 'lucide-react';
+import { Key, Trash2, Check, ExternalLink, Settings2 } from 'lucide-react';
 import { api } from '@demo/utils/api';
+import { useAppSettings } from '@demo/hooks/useAppSettings';
 
 export default function Settings() {
   const [apiKey, setApiKey] = useState('');
   const [status, setStatus] = useState<{ configured: boolean; masked: string }>({ configured: false, masked: '' });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [appSettings, updateAppSettings] = useAppSettings();
 
   useEffect(() => {
     api.getApiKeyStatus().then(setStatus).catch(() => {});
@@ -100,6 +102,38 @@ export default function Settings() {
             {message.text}
           </div>
         )}
+
+        {/* ── UI Preferences ── */}
+        <div className='mt-10 pt-8 border-t border-gray-200'>
+          <h3 className='text-base font-semibold text-gray-900 mb-1 flex items-center gap-2'>
+            <Settings2 size={18} />
+            UI Preferences
+          </h3>
+          <p className='text-sm text-gray-500 mb-4'>
+            Customize the editor layout and appearance.
+          </p>
+
+          <label className='flex items-center gap-3 cursor-pointer select-none group'>
+            <div className='relative'>
+              <input
+                type='checkbox'
+                className='sr-only peer'
+                checked={!appSettings.hideIconToolbar}
+                onChange={e => updateAppSettings({ hideIconToolbar: !e.target.checked })}
+              />
+              <div className='w-9 h-5 bg-gray-300 rounded-full peer-checked:bg-blue-600 transition-colors' />
+              <div className='absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4' />
+            </div>
+            <div>
+              <span className='text-sm font-medium text-gray-700 group-hover:text-gray-900'>
+                Show block toolbar
+              </span>
+              <span className='block text-xs text-gray-400'>
+                The icon sidebar on the left with drag-and-drop blocks
+              </span>
+            </div>
+          </label>
+        </div>
       </div>
     </Frame>
   );

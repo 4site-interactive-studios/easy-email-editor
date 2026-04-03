@@ -30,6 +30,10 @@ export const api = {
     return request<IArticle[]>('/templates');
   },
 
+  async getUserTemplates(): Promise<IArticle[]> {
+    return request<IArticle[]>('/user-templates');
+  },
+
   async getById(id: number): Promise<IArticle | null> {
     try {
       return await request<IArticle>(`/templates/${id}`);

@@ -1,7 +1,8 @@
 import React, { useCallback, useMemo, useRef } from 'react';
 import { useLocalStorage } from 'react-use';
 import { debounce } from 'lodash';
-import { useRefState } from 'easy-email-editor';
+import { useBlock, useRefState } from 'easy-email-editor';
+import { extractColorsFromTemplate } from '@extensions/utils/extractColorsFromTemplate';
 
 const defaultPresetColor: string[] = [
   '#000000',
@@ -19,9 +20,11 @@ const MAX_RECORD_SIZE = 20;
 
 export const PresetColorsContext = React.createContext<{
   colors: string[];
+  templateColors: string[];
   addCurrentColor: (color: string) => void;
 }>({
   colors: [],
+  templateColors: [],
   addCurrentColor: () => {},
 });
 
@@ -35,6 +38,13 @@ export const PresetColorsProvider: React.FC<{
   const currentColorsRef = useRefState(currentColors);
 
   const colorDivRef = useRef(document.createElement('div'));
+
+  // Extract colors from the current template
+  const { values } = useBlock();
+  const templateColors = useMemo(() => {
+    if (!values?.content) return [];
+    return extractColorsFromTemplate(values.content);
+  }, [values?.content]);
 
   const addCurrentColor = useCallback(
     debounce((newColor: string) => {
@@ -55,9 +65,10 @@ export const PresetColorsProvider: React.FC<{
   const value = useMemo(() => {
     return {
       colors: currentColors!,
+      templateColors,
       addCurrentColor,
     };
-  }, [addCurrentColor, currentColors]);
+  }, [addCurrentColor, currentColors, templateColors]);
 
   return useMemo(() => {
     return (

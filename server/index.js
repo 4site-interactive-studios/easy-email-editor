@@ -49,13 +49,21 @@ db.exec(`
   );
 `);
 
+// Migration: add is_template column if missing
+try {
+  db.exec(`ALTER TABLE templates ADD COLUMN is_template INTEGER DEFAULT 0`);
+} catch (e) {
+  // Column already exists — ignore
+}
+
 // Prepared statements
 const stmts = {
-  listTemplates: db.prepare('SELECT * FROM templates ORDER BY updated_at DESC'),
+  listTemplates: db.prepare('SELECT * FROM templates WHERE is_template = 0 ORDER BY updated_at DESC'),
+  listUserTemplates: db.prepare('SELECT * FROM templates WHERE is_template = 1 ORDER BY updated_at DESC'),
   getTemplate: db.prepare('SELECT * FROM templates WHERE article_id = ?'),
   insertTemplate: db.prepare(`
-    INSERT INTO templates (article_id, title, summary, picture, content, user_id, category_id, tags, secret, readcount, level, created_at, updated_at)
-    VALUES (@article_id, @title, @summary, @picture, @content, @user_id, @category_id, @tags, @secret, @readcount, @level, @created_at, @updated_at)
+    INSERT INTO templates (article_id, title, summary, picture, content, user_id, category_id, tags, secret, readcount, level, created_at, updated_at, is_template)
+    VALUES (@article_id, @title, @summary, @picture, @content, @user_id, @category_id, @tags, @secret, @readcount, @level, @created_at, @updated_at, @is_template)
   `),
   updateTemplate: db.prepare(`
     UPDATE templates SET title=@title, summary=@summary, picture=@picture, content=@content, user_id=@user_id, category_id=@category_id, tags=@tags, secret=@secret, readcount=@readcount, level=@level, updated_at=@updated_at
@@ -98,6 +106,7 @@ function toArticle(row) {
     ...row,
     tags: JSON.parse(row.tags || '[]'),
     content: { article_id: row.article_id, content: row.content },
+    is_template: row.is_template || 0,
   };
 }
 
@@ -122,6 +131,11 @@ const httpServer = createServer(async (req, res) => {
     // ── Templates ──
     if (path === '/api/templates' && method === 'GET') {
       const rows = stmts.listTemplates.all();
+      return json(res, rows.map(toArticle));
+    }
+
+    if (path === '/api/user-templates' && method === 'GET') {
+      const rows = stmts.listUserTemplates.all();
       return json(res, rows.map(toArticle));
     }
 
@@ -150,6 +164,7 @@ const httpServer = createServer(async (req, res) => {
         level: body.level || 0,
         created_at: body.created_at || Math.floor(Date.now() / 1000),
         updated_at: body.updated_at || Math.floor(Date.now() / 1000),
+        is_template: body.is_template || 0,
       });
       const saved = stmts.getTemplate.get(body.article_id);
       return json(res, toArticle(saved), 201);

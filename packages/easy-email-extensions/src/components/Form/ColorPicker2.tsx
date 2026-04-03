@@ -25,7 +25,8 @@ const getCollapseItemEle = (node: HTMLElement | null): HTMLElement | null => {
 };
 
 export function ColorPicker(props: ColorPickerProps) {
-  const { colors: presetColors, addCurrentColor } = useContext(PresetColorsContext);
+  const { colors: recentColors, templateColors, addCurrentColor } = useContext(PresetColorsContext);
+  const presetColors = [...(templateColors.length > 0 ? templateColors : []), ...recentColors];
   const [color, setColor] = useState('');
   const { value = '', onChange, children, showInput = true } = props;
   const [refEle, setRefEle] = useState<HTMLElement | null>(null);

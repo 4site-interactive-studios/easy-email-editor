@@ -9,11 +9,11 @@ import { Dialog, Transition, Menu as HMenu } from '@headlessui/react';
 import {
   ArrowLeft, Download, Copy, ChevronDown, Wand2, Loader2,
   AlertTriangle, CheckCircle, X, History, RotateCcw, Check,
-  Code, Eye, FileCode, StickyNote,
+  Code, Eye, FileCode, StickyNote, LayoutTemplate,
 } from 'lucide-react';
 import { useQuery } from '@demo/hooks/useQuery';
 import { useHistory, Prompt } from 'react-router-dom';
-import { cloneDeep } from 'lodash';
+import { cloneDeep, get } from 'lodash';
 import { Loading } from '@demo/components/loading';
 import { getTemplate } from '@demo/config/getTemplate';
 import { generateThumbnail } from '@demo/utils/generateThumbnail';
@@ -28,6 +28,9 @@ import { useCollaboration, ContentPatch } from '@demo/hooks/useCollaboration';
 import { AvatarBar } from '@demo/components/AvatarBar';
 import { getUserIdentity } from '@demo/utils/user-identity';
 import { RemoteCursors } from '@demo/components/RemoteCursors';
+import { BlockInsertButtons } from '@demo/components/BlockInsertButtons';
+import { BlockMjmlEditor } from '@demo/components/BlockMjmlEditor';
+import { getAppSettings } from '@demo/hooks/useAppSettings';
 
 import {
   EmailEditor,
@@ -49,9 +52,9 @@ import { useWindowSize } from 'react-use';
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Write an IEmailTemplate to the server database. */
-async function saveTemplate(articleId: number, values: IEmailTemplate): Promise<void> {
+async function saveTemplate(articleId: number, values: IEmailTemplate, isTemplate = false): Promise<void> {
   const now = nowUnix();
-  const article: IArticle = {
+  const article: any = {
     article_id: articleId,
     title: values.subject || 'Untitled',
     summary: values.subTitle || '',
@@ -68,6 +71,7 @@ async function saveTemplate(articleId: number, values: IEmailTemplate): Promise<
     level: 0,
     created_at: now,
     updated_at: now,
+    is_template: isTemplate ? 1 : 0,
   };
   await api.save(article);
 }
@@ -227,10 +231,13 @@ export default function Editor() {
   const templateData = useAppSelector('template');
   const { width } = useWindowSize();
   const compact = width > 1280;
-  const { id } = useQuery();
+  const query = useQuery();
+  const id = query.id;
+  const isTemplateModeParam = query.template === '1';
   const loading = useLoading(template.loadings.fetchById);
 
   const [savedArticleId, setSavedArticleId] = useState<number | null>(null);
+  const [isTemplateMode, setIsTemplateMode] = useState(isTemplateModeParam);
   const [showNameModal, setShowNameModal] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [lastSavedAt, setLastSavedAt] = useState<number>(0); // unix seconds
@@ -255,8 +262,11 @@ export default function Editor() {
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
   const [editingNoteText, setEditingNoteText] = useState('');
 
-  // Code mode
+  // Code mode: 'visual' | 'code' | 'block'
   const [codeMode, setCodeMode] = useState(false);
+  const [blockCodeMode, setBlockCodeMode] = useState(false);
+  const [blockCodeFocusIdx, setBlockCodeFocusIdx] = useState('');
+  const [blockCodeBlockType, setBlockCodeBlockType] = useState('');
   const [showCursors, setShowCursors] = useState(true);
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const [codeMjml, setCodeMjml] = useState('');
@@ -334,7 +344,7 @@ export default function Editor() {
   const performSave = useCallback(async (articleId: number, values: IEmailTemplate, label: string) => {
     try {
       const contentJson = JSON.stringify(values.content);
-      await saveTemplate(articleId, values);
+      await saveTemplate(articleId, values, isTemplateMode);
       await api.addRevision(articleId, {
         timestamp: nowUnix(),
         label,
@@ -363,7 +373,19 @@ export default function Editor() {
       const mjml = (await import('mjml-browser')).default;
       const mjmlStr = JsonToMjml({ data: content, mode: 'production', context: content });
       const result = mjml(mjmlStr, { validationLevel: 'soft' });
-      setValidationErrors(result.errors || []);
+      // Filter out false positives from non-standard tags and default attributes
+      // that the editor generates internally (not user-authored MJML)
+      const filteredErrors = (result.errors || []).filter((err: any) => {
+        // mj-html-attribute(s) are used by easy-email metadata system
+        if (err.tagName === 'html-attribute' || err.tagName === 'html-attributes') return false;
+        // mj-meta is not standard MJML but may appear in validation from <meta> inside mj-raw
+        if (err.tagName === 'meta') return false;
+        // Padding defaults in <mj-attributes> section (editor-generated, not user content)
+        const msg = err.message || err.formattedMessage || '';
+        if (msg.includes('mj-attributes') || (msg.includes('Attribute padding has invalid value') && msg.includes('0'))) return false;
+        return true;
+      });
+      setValidationErrors(filteredErrors);
     } catch {
       setValidationErrors([{ line: 0, message: 'MJML failed to compile', tagName: 'mjml', formattedMessage: 'The template could not be compiled.' }]);
     }
@@ -374,7 +396,15 @@ export default function Editor() {
     if (id) {
       dispatch(template.actions.fetchById({ id: +id }));
       getTemplate(+id).then(builtIn => {
-        if (!builtIn) setSavedArticleId(+id);
+        if (!builtIn) {
+          setSavedArticleId(+id);
+          // Check if this is a template
+          api.getById(+id).then(article => {
+            if (article && (article as any).is_template) {
+              setIsTemplateMode(true);
+            }
+          }).catch(() => {});
+        }
       });
     } else {
       dispatch(template.actions.fetchDefaultTemplate(undefined));
@@ -460,7 +490,7 @@ export default function Editor() {
     const namedValues = { ...values, subject: templateName.trim() };
     performSave(newId, namedValues, 'Manual save');
     setSavedArticleId(newId);
-    history.replace(`/editor?id=${newId}`);
+    history.replace(`/editor?id=${newId}${isTemplateMode ? '&template=1' : ''}`);
   }, [history, templateName, performSave]);
 
   // ── Restore revision ──
@@ -584,6 +614,63 @@ export default function Editor() {
   const handleCodeMjmlChange = useCallback((mjml: string) => {
     codeMjmlRef.current = mjml;
   }, []);
+
+  // ── Block code mode ──
+  const enterBlockCode = useCallback((focusIdx: string) => {
+    if (!formApiRef.current || !focusIdx || focusIdx === 'content') return;
+    const values = formApiRef.current.getState().values;
+    const block = get(values, focusIdx);
+    if (!block) {
+      Message.error('No block selected');
+      return;
+    }
+    const mjml = JsonToMjml({
+      idx: focusIdx,
+      data: block,
+      mode: 'production',
+      context: values.content,
+      beautify: true,
+    });
+    setCodeMjml(mjml);
+    codeMjmlRef.current = mjml;
+    setBlockCodeMode(true);
+    setBlockCodeFocusIdx(focusIdx);
+    setBlockCodeBlockType(block.type || 'Block');
+  }, []);
+
+  const exitBlockCodeMode = useCallback(() => {
+    if (!formApiRef.current) return;
+    const currentMjml = codeMjmlRef.current;
+    try {
+      const parsed = MjmlToJson(currentMjml);
+      const values = formApiRef.current.getState().values;
+
+      // Validate the parsed type can replace at that position
+      if (parsed.type !== get(values, blockCodeFocusIdx)?.type) {
+        // Type changed — check validity
+        const parentIdx = blockCodeFocusIdx.replace(/\.children\.\[\d+\]$/, '');
+        const parent = get(values, parentIdx);
+        if (parent && !(parsed as any).validParentType?.includes(parent.type)) {
+          Message.error('The block type is not valid at this position');
+          return;
+        }
+      }
+
+      formApiRef.current.change(blockCodeFocusIdx as any, parsed);
+      setBlockCodeMode(false);
+      setBlockCodeFocusIdx('');
+      setBlockCodeBlockType('');
+
+      // Trigger autosave
+      if (savedArticleId) {
+        const newValues = formApiRef.current.getState().values;
+        saveTemplate(savedArticleId, newValues);
+        lastSavedContentRef.current = JSON.stringify(newValues.content);
+      }
+    } catch (err: any) {
+      Message.error('Invalid MJML — fix errors before switching back');
+    }
+  }, [blockCodeFocusIdx, savedArticleId]);
 
   const handleExportMjml = useCallback(() => {
     const mjml = codeMode
@@ -801,11 +888,17 @@ export default function Editor() {
                     >
                       <ArrowLeft size={18} />
                     </button>
+                    {isTemplateMode && (
+                      <span className='inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-purple-700 bg-purple-100 border border-purple-200 rounded'>
+                        <LayoutTemplate size={12} />
+                        Template
+                      </span>
+                    )}
                     <input
                       type='text'
                       className='form-input w-64 text-sm font-semibold border border-transparent rounded px-2 py-1.5 hover:border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-colors'
                       value={values.subject}
-                      placeholder='Untitled email'
+                      placeholder={isTemplateMode ? 'Untitled template' : 'Untitled email'}
                       onChange={e => helper.change('subject', e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
                     />
@@ -928,7 +1021,7 @@ export default function Editor() {
                           codeMode ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
                         }`}
                         onClick={() => !codeMode && enterCodeMode()}
-                        title='MJML code editor'
+                        title='Full MJML code editor'
                       >
                         <Code size={14} />
                         Code
@@ -964,7 +1057,7 @@ export default function Editor() {
                   />
                 ) : (
                   <div ref={editorContainerRef as any} style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
-                    <SimpleLayout showSourceCode={false}>
+                    <SimpleLayout showSourceCode={false} initialLeftHidden={getAppSettings().hideIconToolbar} blockMjmlPanel={<BlockMjmlEditor />}>
                       <EmailEditor />
                     </SimpleLayout>
                     <RemoteCursors
@@ -979,6 +1072,7 @@ export default function Editor() {
                       editorContainerRef={editorContainerRef as any}
                       onMouseMove={(x, y) => collab.sendMousePosition(x, y)}
                     />
+                    <BlockInsertButtons containerRef={editorContainerRef as React.RefObject<HTMLElement>} />
                   </div>
                 )}
               </>

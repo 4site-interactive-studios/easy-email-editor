@@ -1,6 +1,6 @@
 import { IArticle } from '@demo/services/article';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pencil, Trash2, Copy } from 'lucide-react';
+import { Pencil, Trash2, Copy, LayoutTemplate } from 'lucide-react';
 import { timeAgo } from '@demo/utils/time';
 import { useHistory } from 'react-router-dom';
 import template from '@demo/store/template';
@@ -23,10 +23,11 @@ function placeholderColor(name: string): string {
 interface CardItemProps {
   data: IArticle;
   isBuiltIn?: boolean;
+  isTemplate?: boolean;
   activeUsers?: Array<{ userId: string; name: string; color: string; emoji: string }>;
 }
 
-export function CardItem({ data, isBuiltIn, activeUsers }: CardItemProps) {
+export function CardItem({ data, isBuiltIn, isTemplate, activeUsers }: CardItemProps) {
   const dispatch = useDispatch();
   const history = useHistory();
   const [confirming, setConfirming] = useState(false);
@@ -101,14 +102,22 @@ export function CardItem({ data, isBuiltIn, activeUsers }: CardItemProps) {
 
       {/* Body */}
       <div className='px-3.5 pt-3 pb-2 flex-1 min-w-0'>
-        <div
-          className='font-semibold text-sm text-gray-900 truncate leading-snug'
-          title={data.title}
-        >
-          {data.title}
+        <div className='flex items-center gap-1.5'>
+          <div
+            className='font-semibold text-sm text-gray-900 truncate leading-snug flex-1 min-w-0'
+            title={data.title}
+          >
+            {data.title}
+          </div>
+          {isTemplate && (
+            <span className='shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700 bg-purple-100 rounded'>
+              <LayoutTemplate size={9} />
+              Template
+            </span>
+          )}
         </div>
         <div className='text-xs text-gray-400 mt-0.5'>
-          {isBuiltIn ? 'Template' : `Edited ${timeAgo(timestamp)}`}
+          {isBuiltIn ? 'Built-in template' : `Edited ${timeAgo(timestamp)}`}
         </div>
       </div>
 

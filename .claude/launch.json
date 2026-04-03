@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "MJML Editor (demo)",
+      "runtimeExecutable": "/opt/homebrew/bin/node",
+      "runtimeArgs": ["node_modules/.pnpm/vite@2.9.18_less@4.6.4_sass@1.98.0/node_modules/vite/bin/vite.js"],
+      "cwd": "demo",
+      "port": 3200
+    },
+    {
+      "name": "Next.js Demo",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "simple-nextjs-demo",
+      "port": 3000
+    }
+  ]
+}

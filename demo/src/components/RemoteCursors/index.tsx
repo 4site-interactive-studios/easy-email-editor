@@ -36,7 +36,7 @@ function createCaretMarker(user: { color: string; emoji: string; name: string },
     position: relative;
     vertical-align: text-bottom;
     pointer-events: none;
-    animation: blink 1s step-end infinite;
+    opacity: 0.85;
   `;
   if (showFlag) {
     const flag = document.createElement('span');
@@ -303,11 +303,11 @@ export function RemoteCursors({
       }
     });
 
-    // Add blink animation if not already present
+    // Add remote caret styles if not already present
     if (!shadowRoot.querySelector('#remote-caret-styles')) {
       const style = document.createElement('style');
       style.id = 'remote-caret-styles';
-      style.textContent = `@keyframes blink { 50% { opacity: 0; } }`;
+      style.textContent = `.remote-text-caret { transition: opacity 0.2s; }`;
       shadowRoot.appendChild(style);
     }
 
