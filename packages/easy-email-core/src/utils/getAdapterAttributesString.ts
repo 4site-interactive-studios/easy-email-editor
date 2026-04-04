@@ -5,6 +5,7 @@ import { isString } from 'lodash';
 
 import { classnames } from '@core/utils/classnames';
 import { getNodeIdxClassName, getNodeTypeClassName } from '@core/utils';
+import { encodeXmlAttr } from './xmlEncoding';
 
 export function getAdapterAttributesString(
   params: Parameters<IBlock['render']>[0]
@@ -41,9 +42,8 @@ export function getAdapterAttributesString(
     if (typeof val === 'boolean') {
       attributeStr += `${key}="${val.toString()}" `;
     } else if (isString(val) && (val || PRESERVE_EMPTY.has(key))) {
-      // Escape double quotes in values instead of stripping them,
-      // to preserve font-family quotes like 'Helvetica', 'Arial'
-      attributeStr += `${key}="${val.replace(/"/gm, '&quot;')}" `;
+      // Properly XML-encode attribute values to handle &, <, >, "
+      attributeStr += `${key}="${encodeXmlAttr(val)}" `;
     }
   }
 

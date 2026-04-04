@@ -31,7 +31,7 @@ export function generaMjmlMetaData(data: IPage) {
               }"`;
             })
             .join(' ')
-        : `${key}="${values[attKey]}"`;
+        : `${key}="${String(values[attKey] || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"`;
       return `<mj-html-attribute class="easy-email" multiple-attributes="${isMultipleAttributes}" attribute-name="${key}" ${value}></mj-html-attribute>`;
     });
 

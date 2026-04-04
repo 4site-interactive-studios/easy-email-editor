@@ -112,12 +112,13 @@ export const Social: IBlock<ISocial> = createBlock({
     const elements = (data ).data.value.elements
       .map((element) => {
         const elementAttributeStr = Object.keys(element)
-          .filter((key) => key !== 'content' && element[key as keyof typeof element] !== '') // filter att=""
-          .map((key) => `${key}="${element[key as keyof typeof element]}"`)
+          .filter((key) => key !== 'content' && element[key as keyof typeof element] !== '')
+          .map((key) => {
+            const val = String(element[key as keyof typeof element] || '');
+            return `${key}="${val.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')}"`;
+          })
           .join(' ');
-        return `
-          <mj-social-element ${elementAttributeStr}>${element.content ?? ''}</mj-social-element>
-          `;
+        return `<mj-social-element ${elementAttributeStr}>${element.content ?? ''}</mj-social-element>`;
       })
       .join('\n');
     return <BasicBlock params={params} tag="mj-social">{elements}</BasicBlock>;

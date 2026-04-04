@@ -137,11 +137,11 @@ export const Page = createBlock<IPage>({
               ${extraHeadContent}
               ${value.fonts
                 ?.filter(Boolean)
-                .map(item => `<mj-font name="${item.name}" href="${item.href}" />`)}
+                .map(item => `<mj-font name="${item.name}" href="${(item.href || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" />`)}
             <mj-attributes>
               ${
                 value['font-family']
-                  ? `<mj-all font-family="${value['font-family'].replace(/"/gm, '')}" />`
+                  ? `<mj-all font-family="${value['font-family'].replace(/"/g, '&quot;')}" />`
                   : ''
               }
               ${value['font-size'] ? `<mj-text font-size="${value['font-size']}" />` : ''}
