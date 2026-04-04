@@ -233,16 +233,8 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
 
   return createPortal(
     <>
-      {/* ── Top pill: [↑ Move Up] | [+ Insert] | [↰ Up & Out] ── */}
+      {/* ── Top pill: [+ Insert] | [↰ Up & Out] | [↑ Move Up] ── */}
       <div style={{ ...pillStyle, top: rect.top - 12, left: centerX }}>
-        {parentInfo.canMoveUp && (
-          <>
-            <button style={moveSegment} onClick={handleMoveUp} title={parentInfo.upLabel}>
-              <ChevronUp size={14} strokeWidth={2.5} />
-            </button>
-            <div style={divider} />
-          </>
-        )}
         <button
           style={plusSegment}
           onClick={e => { e.stopPropagation(); setPopup(popup === 'above' ? null : 'above'); }}
@@ -258,18 +250,18 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
             </button>
           </>
         )}
-      </div>
-
-      {/* ── Bottom pill: [↳ Down & Out] | [+ Insert] | [↓ Move Down] ── */}
-      <div style={{ ...pillStyle, top: rect.top + rect.height - 12, left: centerX }}>
-        {showDownAndOut && (
+        {parentInfo.canMoveUp && (
           <>
-            <button style={moveSegment} onClick={handleMoveDownAndOut} title={`Move down and out of the ${parentInfo.parentName}`}>
-              <CornerRightDown size={13} strokeWidth={2.5} />
-            </button>
             <div style={divider} />
+            <button style={moveSegment} onClick={handleMoveUp} title={parentInfo.upLabel}>
+              <ChevronUp size={14} strokeWidth={2.5} />
+            </button>
           </>
         )}
+      </div>
+
+      {/* ── Bottom pill: [+ Insert] | [↳ Down & Out] | [↓ Move Down] ── */}
+      <div style={{ ...pillStyle, top: rect.top + rect.height - 12, left: centerX }}>
         <button
           style={plusSegment}
           onClick={e => { e.stopPropagation(); setPopup(popup === 'below' ? null : 'below'); }}
@@ -277,6 +269,14 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
         >
           <Plus size={14} strokeWidth={3} />
         </button>
+        {showDownAndOut && (
+          <>
+            <div style={divider} />
+            <button style={moveSegment} onClick={handleMoveDownAndOut} title={`Move down and out of the ${parentInfo.parentName}`}>
+              <CornerRightDown size={13} strokeWidth={2.5} />
+            </button>
+          </>
+        )}
         {parentInfo.canMoveDown && (
           <>
             <div style={divider} />

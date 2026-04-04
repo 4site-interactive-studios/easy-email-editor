@@ -381,9 +381,11 @@ export default function Editor() {
         if (err.tagName === 'html-attribute' || err.tagName === 'html-attributes') return false;
         // mj-meta is not standard MJML but may appear in validation from <meta> inside mj-raw
         if (err.tagName === 'meta') return false;
-        // Padding defaults in <mj-attributes> section (editor-generated, not user content)
         const msg = err.message || err.formattedMessage || '';
+        // Padding defaults in <mj-attributes> section (editor-generated, not user content)
         if (msg.includes('mj-attributes') || (msg.includes('Attribute padding has invalid value') && msg.includes('0'))) return false;
+        // mj-raw illegal attributes — these get inherited from parent blocks during import
+        if ((err.tagName === 'mj-raw' || err.tagName === 'raw') && msg.includes('illegal')) return false;
         return true;
       });
       setValidationErrors(filteredErrors);
@@ -1159,7 +1161,7 @@ export default function Editor() {
                                   {err.formattedMessage || err.message}
                                 </p>
                                 <div className='flex gap-3 mt-1 text-xs text-gray-500'>
-                                  {err.tagName && <span className='font-mono bg-gray-100 px-1.5 py-0.5 rounded'>{'<'}mj-{err.tagName}{'>'}</span>}
+                                  {err.tagName && <span className='font-mono bg-gray-100 px-1.5 py-0.5 rounded'>{'<'}{err.tagName.startsWith('mj-') ? err.tagName : `mj-${err.tagName}`}{'>'}</span>}
                                   {err.line > 0 && <span>Line {err.line}</span>}
                                   {status === 'fixing' && <span className='text-blue-600 font-medium'>Fixing...</span>}
                                   {status === 'fixed' && <span className='text-green-600 font-medium'>Fixed</span>}
