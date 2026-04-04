@@ -160,6 +160,11 @@ function parseMjmlDocument(root: Element): IPage {
   if (rawContent) extraHeadContent += rawContent;
   extraHeadContent = extraHeadContent.trim();
 
+  // ── Extract root <mjml> attributes (e.g., lang="en") ──
+  const mjmlAttrs = Array.from(root.attributes)
+    .map(a => `${a.name}="${a.value}"`)
+    .join(' ');
+
   // ── Extract body attributes ──
   const bodyAttributes: Record<string, string> = {};
   for (const attr of Array.from(body.attributes)) {
@@ -182,6 +187,7 @@ function parseMjmlDocument(root: Element): IPage {
         breakpoint,
         responsive: true,
         extraHeadContent: extraHeadContent || undefined,
+        mjmlAttributes: mjmlAttrs || undefined,
       },
     },
   };

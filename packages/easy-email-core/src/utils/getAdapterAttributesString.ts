@@ -32,7 +32,7 @@ export function getAdapterAttributesString(
 
   // Attributes where empty string "" is a valid, intentional value
   // that should be preserved in the output (e.g., alt="" for accessibility)
-  const PRESERVE_EMPTY = new Set(['alt']);
+  const PRESERVE_EMPTY = new Set(['alt', 'href', 'src', 'class', 'css-class', 'title']);
 
   let attributeStr = '';
   for (let key in attributes) {
@@ -41,7 +41,9 @@ export function getAdapterAttributesString(
     if (typeof val === 'boolean') {
       attributeStr += `${key}="${val.toString()}" `;
     } else if (isString(val) && (val || PRESERVE_EMPTY.has(key))) {
-      attributeStr += `${key}="${val.replace(/"/gm, '')}" `;
+      // Escape double quotes in values instead of stripping them,
+      // to preserve font-family quotes like 'Helvetica', 'Arial'
+      attributeStr += `${key}="${val.replace(/"/gm, '&quot;')}" `;
     }
   }
 

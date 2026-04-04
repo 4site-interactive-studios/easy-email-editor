@@ -25,16 +25,18 @@ export type IPage = IBlockData<
     }[];
     extraHeadContent?: string;
     responsive?: boolean;
-    'font-family': string;
-    'font-size': string;
-    'font-weight': string;
-    'line-height': string;
-    'text-color': string;
+    'font-family'?: string;
+    'font-size'?: string;
+    'font-weight'?: string;
+    'line-height'?: string;
+    'text-color'?: string;
     'user-style'?: {
       content?: string;
       inline?: 'inline';
     };
     'content-background-color'?: string;
+    /** Attributes on the root <mjml> element (e.g., lang="en") */
+    mjmlAttributes?: string;
   }
 >;
 
@@ -125,7 +127,7 @@ export const Page = createBlock<IPage>({
     return (
       <>
         {`
-          <mjml>
+          <mjml${value.mjmlAttributes ? ' ' + value.mjmlAttributes : ''}>
           <mj-head>
               ${metaData}
               ${nonResponsive}
@@ -167,7 +169,7 @@ export const Page = createBlock<IPage>({
           />
         ))}
 
-        {'</mj-body></mjml > '}
+        {'</mj-body></mjml>'}
       </>
     );
   },

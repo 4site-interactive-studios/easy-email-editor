@@ -197,10 +197,10 @@ export function MjmlToJson(data: MjmlBlockItem | string): IPage {
           children: payload.children || [],
         };
 
-        // Format padding — but preserve individual side attributes
-        // (e.g., padding-bottom should stay as padding-bottom, not become padding)
-        formatPaddingPreserving(blockData.attributes, 'padding');
-        formatPaddingPreserving(blockData.attributes, 'inner-padding');
+        // Don't normalize padding — preserve the source values exactly.
+        // The old formatPadding expanded "32px" → "32px 32px 32px 32px"
+        // and merged padding-bottom into padding, both of which changed
+        // the source MJML semantics.
         return blockData;
     }
   };
@@ -239,39 +239,3 @@ export function getMetaDataFromMjml(data?: IChildrenItem): {
   return pickBy(mjmlHtmlAttributes, identity);
 }
 
-/**
- * Format padding — preserves individual side attributes as-is.
- * Only normalizes the shorthand `padding`/`inner-padding` attribute
- * (NOT padding-top, padding-bottom, etc. which are separate MJML attributes).
- *
- * The old formatPadding incorrectly merged padding-bottom into padding,
- * changing the semantic meaning. This version keeps them separate.
- */
-function formatPaddingPreserving(
-  attributes: IBlockData['attributes'],
-  attributeName: 'padding' | 'inner-padding'
-) {
-  // Only process the shorthand attribute if it exists
-  // Individual side attributes (padding-top, padding-bottom, etc.)
-  // are valid MJML attributes and should be preserved as-is
-  const shorthand = attributes[attributeName];
-  if (!shorthand || !isString(shorthand)) return;
-
-  // Normalize the shorthand value via DOM style parsing
-  // This handles things like "0" → "0px 0px 0px 0px" or "32px" → "32px 32px 32px 32px"
-  // But we intentionally DON'T merge individual-side attributes into shorthand
-  const ele = document.createElement('div');
-  ele.style[attributeName as any] = shorthand;
-  const newPadding = [
-    ele.style.paddingTop,
-    ele.style.paddingRight,
-    ele.style.paddingBottom,
-    ele.style.paddingLeft,
-  ]
-    .filter(Boolean)
-    .join(' ');
-
-  if (newPadding) {
-    attributes[attributeName] = newPadding;
-  }
-}
