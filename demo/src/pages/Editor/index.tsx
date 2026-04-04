@@ -1081,7 +1081,7 @@ export default function Editor() {
                   />
                 ) : (
                   <div ref={editorContainerRef as any} style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
-                    <SimpleLayout showSourceCode={false} initialLeftHidden={getAppSettings().hideIconToolbar} blockMjmlPanel={<BlockMjmlEditor />}>
+                    <SimpleLayout showSourceCode={false} initialLeftHidden={getAppSettings().hideIconToolbar} showBlockLayer={getAppSettings().showLayoutPanel} blockMjmlPanel={<BlockMjmlEditor />}>
                       <EmailEditor />
                     </SimpleLayout>
                     {multiUserEnabled && (

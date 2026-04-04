@@ -98,17 +98,24 @@ export const SimpleLayout: React.FC<
     mjmlReadOnly?: boolean;
     defaultShowLayer?: boolean;
     initialLeftHidden?: boolean;
+    showBlockLayer?: boolean;
     blockMjmlPanel?: React.ReactNode;
     children: React.ReactNode | React.ReactElement;
   } & BlockLayerProps
 > = props => {
   const { height: containerHeight } = useEditorProps();
   const { showSourceCode = true, defaultShowLayer = true, jsonReadOnly = false, mjmlReadOnly = true } = props;
+  const showBlockLayer = props.showBlockLayer ?? false;
   const { width: viewportWidth } = useWindowSize();
   const isNarrow = viewportWidth < 1280;
 
-  const [collapsed, setCollapsed] = useState(() => !defaultShowLayer || isNarrow);
-  const [leftHidden, setLeftHidden] = useState(props.initialLeftHidden ?? false);
+  // If block layer is enabled, start expanded; otherwise collapsed
+  const [collapsed, setCollapsed] = useState(() => showBlockLayer ? false : (!defaultShowLayer || isNarrow));
+  // If toolbar is hidden but block layer is enabled, don't hide the left sider
+  const [leftHidden, setLeftHidden] = useState(() => {
+    if (showBlockLayer) return false;
+    return props.initialLeftHidden ?? false;
+  });
   const [leftPeeking, setLeftPeeking] = useState(false);
   const leftPeekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [rightCollapsed, setRightCollapsed] = useState(() => isNarrow);

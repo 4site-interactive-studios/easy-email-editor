@@ -7,6 +7,7 @@ export interface AppSettings {
   multiUserEnabled: boolean;
   moveOutEnabled: boolean;
   moveInEnabled: boolean;
+  showLayoutPanel: boolean;
 }
 
 const defaults: AppSettings = {
@@ -14,6 +15,7 @@ const defaults: AppSettings = {
   multiUserEnabled: false,
   moveOutEnabled: false,
   moveInEnabled: false,
+  showLayoutPanel: false,
 };
 
 function loadSettings(): AppSettings {
