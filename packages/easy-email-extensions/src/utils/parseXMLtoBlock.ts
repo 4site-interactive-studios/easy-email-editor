@@ -12,6 +12,64 @@ const RAW_ILLEGAL_ATTRS = new Set([
 const domParser = new DOMParser();
 
 /**
+ * Preprocess MJML string to make it XML-safe.
+ * MJML is XHTML-like but often contains HTML entities and patterns
+ * that aren't valid in strict XML mode.
+ */
+function preprocessMjml(text: string): string {
+  let result = text;
+
+  // Add XML entity declarations for common HTML entities
+  // We wrap the content in an XML document with entity declarations
+  // so that &rsquo;, &trade;, &nbsp;, etc. are recognized
+  const hasXmlDecl = result.trimStart().startsWith('<?xml');
+
+  if (!hasXmlDecl) {
+    // Common HTML entities that aren't defined in XML
+    const entityDecl = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mjml [
+  <!ENTITY nbsp "&#160;">
+  <!ENTITY rsquo "&#8217;">
+  <!ENTITY lsquo "&#8216;">
+  <!ENTITY rdquo "&#8221;">
+  <!ENTITY ldquo "&#8220;">
+  <!ENTITY mdash "&#8212;">
+  <!ENTITY ndash "&#8211;">
+  <!ENTITY trade "&#8482;">
+  <!ENTITY TRADE "&#8482;">
+  <!ENTITY reg "&#174;">
+  <!ENTITY copy "&#169;">
+  <!ENTITY amp "&#38;">
+  <!ENTITY lt "&#60;">
+  <!ENTITY gt "&#62;">
+  <!ENTITY hellip "&#8230;">
+  <!ENTITY bull "&#8226;">
+  <!ENTITY middot "&#183;">
+  <!ENTITY laquo "&#171;">
+  <!ENTITY raquo "&#187;">
+  <!ENTITY deg "&#176;">
+  <!ENTITY times "&#215;">
+  <!ENTITY divide "&#247;">
+  <!ENTITY minus "&#8722;">
+  <!ENTITY plusmn "&#177;">
+  <!ENTITY frac12 "&#189;">
+  <!ENTITY frac14 "&#188;">
+  <!ENTITY frac34 "&#190;">
+  <!ENTITY hearts "&#9829;">
+  <!ENTITY star "&#9733;">
+  <!ENTITY check "&#10003;">
+  <!ENTITY rarr "&#8594;">
+  <!ENTITY larr "&#8592;">
+  <!ENTITY darr "&#8595;">
+  <!ENTITY uarr "&#8593;">
+]>\n`;
+    result = entityDecl + result;
+  }
+
+  return result;
+}
+
+/**
  * Parse an MJML string into block data using the browser's DOMParser.
  *
  * This replaces the old approach that delegated to mjml-browser's parser,
@@ -25,14 +83,22 @@ const domParser = new DOMParser();
  * - Element ordering
  */
 export function parseXMLtoBlock(text: string): IPage {
-  const dom = domParser.parseFromString(text, 'text/xml');
-  const root = dom.documentElement;
+  // First try XML parsing with entity preprocessing
+  const preprocessed = preprocessMjml(text);
+  let dom = domParser.parseFromString(preprocessed, 'text/xml');
+  let root = dom.documentElement;
 
+  // If XML parsing fails, try parsing as HTML and extracting the mjml element
   if (!root || root.querySelector('parsererror')) {
-    throw new Error('Invalid MJML: XML parse error');
+    // HTML parser is more lenient — handles unescaped &, <br>, etc.
+    dom = domParser.parseFromString(text, 'text/html');
+    root = dom.querySelector('mjml') as Element;
+    if (!root) {
+      throw new Error('Invalid MJML: could not parse document');
+    }
   }
 
-  if (root.tagName === 'mjml') {
+  if (root.tagName === 'mjml' || root.tagName.toLowerCase() === 'mjml') {
     return parseMjmlDocument(root);
   }
 
@@ -132,10 +198,11 @@ function serializeMjAttributes(el: Element): string {
   const parts: string[] = [];
 
   for (const child of Array.from(el.children)) {
+    const tag = child.tagName.toLowerCase();
     const attrs = Array.from(child.attributes)
       .map(a => `${a.name}="${a.value}"`)
       .join(' ');
-    parts.push(`<${child.tagName} ${attrs} />`);
+    parts.push(`<${tag} ${attrs} />`);
   }
 
   return parts.join('\n');
