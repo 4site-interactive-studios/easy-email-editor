@@ -54,11 +54,17 @@ import { useWindowSize } from 'react-use';
 /** Write an IEmailTemplate to the server database. */
 async function saveTemplate(articleId: number, values: IEmailTemplate, isTemplate = false): Promise<void> {
   const now = nowUnix();
+  // Preserve existing picture — don't overwrite thumbnail with empty string
+  let existingPicture = '';
+  try {
+    const existing = await api.getById(articleId);
+    if (existing?.picture) existingPicture = existing.picture;
+  } catch {}
   const article: any = {
     article_id: articleId,
     title: values.subject || 'Untitled',
     summary: values.subTitle || '',
-    picture: '',
+    picture: existingPicture,
     content: {
       article_id: articleId,
       content: JSON.stringify(values.content),
@@ -80,10 +86,13 @@ async function saveTemplate(articleId: number, values: IEmailTemplate, isTemplat
 function generateThumbnailInBackground(articleId: number, content: IBlockData): void {
   generateThumbnail(content)
     .then(async picture => {
+      if (!picture) return;
       const latest = await api.getById(articleId);
       if (latest) await api.save({ ...latest, picture });
     })
-    .catch(() => {});
+    .catch(err => {
+      console.warn('[thumbnail] Failed to generate thumbnail:', err?.message || err);
+    });
 }
 
 /**
