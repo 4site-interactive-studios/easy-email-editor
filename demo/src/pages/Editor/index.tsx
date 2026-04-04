@@ -96,6 +96,20 @@ function generateThumbnailInBackground(articleId: number, content: IBlockData): 
 }
 
 /**
+ * Strip editor-internal metadata from MJML output so the user sees
+ * clean, standard MJML. Removes:
+ * - <mj-html-attributes>...</mj-html-attributes> blocks (easy-email metadata)
+ * - Cleans up resulting blank lines
+ */
+function stripEditorMetadata(mjml: string): string {
+  // Remove the entire <mj-html-attributes> block (may span multiple lines)
+  let result = mjml.replace(/<mj-html-attributes>[\s\S]*?<\/mj-html-attributes>\s*/gi, '');
+  // Collapse runs of blank lines to single blank line
+  result = result.replace(/\n{3,}/g, '\n\n');
+  return result;
+}
+
+/**
  * Read the CURRENT form values, guaranteed fresh.
  * Blurs active elements (including shadow DOM contenteditable), waits for
  * all debounces to flush (500ms), then reads formApi.getState().values.
@@ -311,12 +325,15 @@ export default function Editor() {
   const onCollabCodeModeEntered = useCallback(() => {
     if (!formApiRef.current) return;
     const values = formApiRef.current.getState().values;
-    const mjml = JsonToMjml({
+    let mjml = JsonToMjml({
       data: values.content,
       mode: 'production',
       context: values.content,
       beautify: true,
     });
+    if (getAppSettings().hideEditorMetadata) {
+      mjml = stripEditorMetadata(mjml);
+    }
     setCodeMjml(mjml);
     codeMjmlRef.current = mjml;
     setCodeMode(true);
@@ -592,12 +609,15 @@ export default function Editor() {
     } else {
       // Alone — enter directly
       const values = formApiRef.current.getState().values;
-      const mjml = JsonToMjml({
+      let mjml = JsonToMjml({
         data: values.content,
         mode: 'production',
         context: values.content,
         beautify: true,
       });
+      if (getAppSettings().hideEditorMetadata) {
+        mjml = stripEditorMetadata(mjml);
+      }
       setCodeMjml(mjml);
       codeMjmlRef.current = mjml;
       setCodeMode(true);
@@ -695,12 +715,15 @@ export default function Editor() {
   }, [blockCodeFocusIdx, savedArticleId]);
 
   const handleExportMjml = useCallback(() => {
-    const mjml = codeMode
+    let mjml = codeMode
       ? codeMjmlRef.current
       : formApiRef.current
         ? JsonToMjml({ data: formApiRef.current.getState().values.content, mode: 'production', context: formApiRef.current.getState().values.content, beautify: true })
         : '';
     if (!mjml) return;
+    if (getAppSettings().hideEditorMetadata) {
+      mjml = stripEditorMetadata(mjml);
+    }
     const subject = formApiRef.current?.getState().values.subject || 'email';
     downloadFile(mjml, `${subject}.mjml`, 'text/xml');
   }, [codeMode]);

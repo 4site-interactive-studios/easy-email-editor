@@ -218,6 +218,27 @@ export default function Settings() {
                 </span>
               </div>
             </label>
+
+            <label className='flex items-center gap-3 cursor-pointer select-none group'>
+              <div className='relative'>
+                <input
+                  type='checkbox'
+                  className='sr-only peer'
+                  checked={appSettings.hideEditorMetadata}
+                  onChange={e => updateAppSettings({ hideEditorMetadata: e.target.checked })}
+                />
+                <div className='w-9 h-5 bg-gray-300 rounded-full peer-checked:bg-blue-600 transition-colors' />
+                <div className='absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4' />
+              </div>
+              <div>
+                <span className='text-sm font-medium text-gray-700 group-hover:text-gray-900'>
+                  Hide editor metadata in MJML
+                </span>
+                <span className='block text-xs text-gray-400'>
+                  Strip internal mj-html-attributes tags when viewing or exporting MJML source
+                </span>
+              </div>
+            </label>
           </div>
         </div>
       </div>

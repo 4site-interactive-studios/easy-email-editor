@@ -8,6 +8,7 @@ export interface AppSettings {
   moveOutEnabled: boolean;
   moveInEnabled: boolean;
   showLayoutPanel: boolean;
+  hideEditorMetadata: boolean;
 }
 
 const defaults: AppSettings = {
@@ -16,6 +17,7 @@ const defaults: AppSettings = {
   moveOutEnabled: false,
   moveInEnabled: false,
   showLayoutPanel: false,
+  hideEditorMetadata: false,
 };
 
 function loadSettings(): AppSettings {
