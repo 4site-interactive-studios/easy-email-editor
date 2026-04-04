@@ -1,10 +1,12 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Controlled as CodeMirror } from 'react-codemirror2';
 import { Message } from '@arco-design/web-react';
+import { ChevronUp, ChevronRight } from 'lucide-react';
 import {
   BasicType,
   BlockManager,
   getPageIdx,
+  getParentIdx,
   getParentByIdx,
   JsonToMjml,
 } from 'easy-email-core';
@@ -15,7 +17,7 @@ import {
   useEditorProps,
 } from 'easy-email-editor';
 import { MjmlToJson } from 'easy-email-extensions';
-import { cloneDeep } from 'lodash';
+import { cloneDeep, get } from 'lodash';
 
 // CodeMirror core
 import 'codemirror/lib/codemirror.css';
@@ -39,18 +41,41 @@ import 'codemirror/addon/hint/show-hint';
 import 'codemirror/addon/hint/show-hint.css';
 import 'codemirror/addon/hint/xml-hint';
 
+function getBlockDisplayName(block: any): string {
+  if (!block) return '?';
+  return BlockManager.getBlockByType(block.type)?.name || block.type || '?';
+}
+
 /**
  * A CodeMirror-based MJML editor for the currently focused block.
  * Designed to be used as a sidebar tab in the right panel.
  */
 export function BlockMjmlEditor() {
   const { setValueByIdx, focusBlock, values } = useBlock();
-  const { focusIdx } = useFocusIdx();
+  const { focusIdx, setFocusIdx } = useFocusIdx();
   const { pageData } = useEditorContext();
   const { mergeTags } = useEditorProps();
   const [mjmlText, setMjmlText] = useState('');
   const editorRef = useRef<any>(null);
   const applyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Build breadcrumb trail from page root to current block
+  const breadcrumbs = useMemo(() => {
+    if (!focusIdx) return [];
+    const crumbs: Array<{ idx: string; name: string }> = [];
+    let idx: string | undefined = focusIdx;
+    while (idx) {
+      const block = get(values, idx);
+      if (block) {
+        crumbs.unshift({ idx, name: getBlockDisplayName(block) });
+      }
+      idx = getParentIdx(idx);
+    }
+    return crumbs;
+  }, [focusIdx, values]);
+
+  const parentIdx = focusIdx ? getParentIdx(focusIdx) : undefined;
+  const canJumpUp = !!parentIdx;
 
   // Re-generate MJML when the focused block changes
   useEffect(() => {
@@ -106,6 +131,27 @@ export function BlockMjmlEditor() {
     applyMjml(mjmlText);
   }, [applyMjml, mjmlText]);
 
+  const handleJumpUp = useCallback(() => {
+    if (parentIdx) {
+      // Apply any pending changes before jumping
+      if (applyTimerRef.current) {
+        clearTimeout(applyTimerRef.current);
+        applyMjml(mjmlText);
+      }
+      setFocusIdx(parentIdx);
+    }
+  }, [parentIdx, setFocusIdx, applyMjml, mjmlText]);
+
+  const handleBreadcrumbClick = useCallback((idx: string) => {
+    if (idx === focusIdx) return;
+    // Apply any pending changes before jumping
+    if (applyTimerRef.current) {
+      clearTimeout(applyTimerRef.current);
+      applyMjml(mjmlText);
+    }
+    setFocusIdx(idx);
+  }, [focusIdx, setFocusIdx, applyMjml, mjmlText]);
+
   const blockType = focusBlock?.type || '';
   const blockName = blockType
     ? BlockManager.getBlockByType(blockType)?.name || blockType
@@ -121,9 +167,53 @@ export function BlockMjmlEditor() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }} className='block-mjml-editor-panel'>
-      {/* Block info bar */}
+      {/* Breadcrumb bar */}
       <div style={{
-        padding: '6px 12px',
+        padding: '4px 8px',
+        background: '#f9fafb',
+        borderBottom: '1px solid #e5e7eb',
+        fontSize: 11,
+        display: 'flex',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 1,
+        flexShrink: 0,
+        minHeight: 28,
+      }}>
+        {breadcrumbs.map((crumb, i) => {
+          const isLast = i === breadcrumbs.length - 1;
+          return (
+            <React.Fragment key={crumb.idx}>
+              {i > 0 && <ChevronRight size={10} style={{ color: '#9ca3af', flexShrink: 0 }} />}
+              <button
+                onClick={() => handleBreadcrumbClick(crumb.idx)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: '1px 4px',
+                  borderRadius: 3,
+                  cursor: isLast ? 'default' : 'pointer',
+                  fontWeight: isLast ? 600 : 400,
+                  color: isLast ? '#1e40af' : '#6b7280',
+                  fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                  fontSize: 11,
+                  lineHeight: '18px',
+                  ...(isLast ? {} : { ':hover': { background: '#e5e7eb' } }),
+                }}
+                onMouseEnter={e => { if (!isLast) (e.currentTarget as HTMLElement).style.background = '#e5e7eb'; }}
+                onMouseLeave={e => { if (!isLast) (e.currentTarget as HTMLElement).style.background = 'none'; }}
+                title={isLast ? `Currently editing: ${crumb.name}` : `Jump to ${crumb.name}`}
+              >
+                {crumb.name}
+              </button>
+            </React.Fragment>
+          );
+        })}
+      </div>
+
+      {/* Block info bar with Jump Up button */}
+      <div style={{
+        padding: '5px 8px',
         background: '#fef3c7',
         borderBottom: '1px solid #fde68a',
         fontSize: 12,
@@ -134,11 +224,32 @@ export function BlockMjmlEditor() {
         gap: 6,
         flexShrink: 0,
       }}>
+        {canJumpUp && (
+          <button
+            onClick={handleJumpUp}
+            title={`Jump to parent (${getBlockDisplayName(get(values, parentIdx))})`}
+            style={{
+              background: '#92400e',
+              color: '#fef3c7',
+              border: 'none',
+              borderRadius: 3,
+              width: 22,
+              height: 22,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              flexShrink: 0,
+              padding: 0,
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#78350f'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#92400e'; }}
+          >
+            <ChevronUp size={14} strokeWidth={2.5} />
+          </button>
+        )}
         <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}>
           &lt;{blockName}&gt;
-        </span>
-        <span style={{ fontWeight: 400, color: '#b45309', fontSize: 11, opacity: 0.7 }}>
-          {focusIdx}
         </span>
       </div>
 
