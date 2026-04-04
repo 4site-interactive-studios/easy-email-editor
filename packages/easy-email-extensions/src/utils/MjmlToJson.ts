@@ -1,6 +1,14 @@
-import { BlockManager,IPage, BasicType, IBlockData } from 'easy-email-core';
+import { BlockManager, IPage, BasicType, IBlockData } from 'easy-email-core';
 import { identity, isString, pickBy } from 'lodash';
 import { parseXMLtoBlock } from './parseXMLtoBlock';
+
+// Attributes that are illegal on <mj-raw> — strip during import
+const RAW_ILLEGAL_ATTRS = new Set([
+  'padding', 'border', 'direction', 'text-align',
+  'background-repeat', 'background-size', 'background-position',
+  'vertical-align', 'align', 'background-color',
+  'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+]);
 
 export function MjmlToJson(data: MjmlBlockItem | string): IPage {
   if (isString(data)) return parseXMLtoBlock(data);
@@ -30,6 +38,9 @@ export function MjmlToJson(data: MjmlBlockItem | string): IPage {
           ?.filter((item) => item.tagName === 'mj-style')
           .map((item) => ({ content: item.content, inline: item.inline }));
 
+        // Preserve ALL mj-attributes as headAttributes string.
+        // For fresh imports (not from easy-email), metaData is empty, so
+        // nothing is filtered out — all user declarations are preserved.
         const headAttributes = [
           ...new Set(
             mjAttributes
@@ -59,19 +70,38 @@ export function MjmlToJson(data: MjmlBlockItem | string): IPage {
           (item) => item.tagName === 'mj-breakpoint'
         );
 
-        return BlockManager.getBlockByType<IPage>(BasicType.PAGE)!.create({
-          attributes: body.attributes,
-          children: body.children?.map(transform),
+        // Extract extra head content (mj-raw blocks inside mj-head)
+        const extraHeadContent = head?.children
+          ?.filter((item) => item.tagName === 'mj-raw')
+          .map((item) => item.content || '')
+          .filter(Boolean)
+          .join('\n') || '';
+
+        // Construct Page directly — don't call Page.create() to avoid
+        // injecting editor defaults (font-family, font-size, etc.) that
+        // would override the user's <mj-attributes> declarations.
+        const pageData: IPage = {
+          type: BasicType.PAGE,
+          attributes: body.attributes || {},
+          children: body.children?.map(transform) || [],
           data: {
             value: {
               headAttributes: headAttributes,
-              headStyles: headStyles,
-              fonts,
-              breakpoint: breakpoint?.attributes.width,
+              headStyles: headStyles || [],
+              fonts: fonts,
+              breakpoint: breakpoint?.attributes.width || '',
+              responsive: true,
+              extraHeadContent: extraHeadContent || undefined,
+              // Only include metadata fields that were actually present
+              // in the source MJML (from easy-email's mj-html-attributes).
+              // For fresh imports, metaData is empty — the Page render
+              // won't emit font/color declarations, keeping the user's
+              // headAttributes as the sole <mj-attributes> content.
               ...metaData,
             },
           },
-        });
+        };
+        return pageData;
 
       default:
         const tag = item.tagName.replace('mj-', '').toLowerCase();
@@ -80,9 +110,22 @@ export function MjmlToJson(data: MjmlBlockItem | string): IPage {
         if (!block) {
           throw new Error(`${tag} block no found `);
         }
+
+        // Build attributes — only what the source MJML provided
+        let blockAttributes = { ...attributes };
+
+        // Strip illegal attributes from mj-raw blocks
+        if (block.type === BasicType.RAW) {
+          Object.keys(blockAttributes).forEach(key => {
+            if (RAW_ILLEGAL_ATTRS.has(key)) {
+              delete blockAttributes[key];
+            }
+          });
+        }
+
         const payload: IBlockData<any> = {
           type: block.type,
-          attributes: attributes,
+          attributes: blockAttributes,
           data: {
             value: {},
           },
@@ -103,12 +146,7 @@ export function MjmlToJson(data: MjmlBlockItem | string): IPage {
           payload.data.value.links =
             item.children?.map((child) => {
               const navbarLinkData = {
-                // default config
-                color: '#1890ff',
-                'font-size': '13px',
-                target: '_blank',
-                padding: '15px 10px',
-
+                // Use only the source attributes — no hardcoded defaults
                 ...child.attributes,
                 content: child.content,
               };
@@ -129,9 +167,19 @@ export function MjmlToJson(data: MjmlBlockItem | string): IPage {
           payload.children = item.children.map(transform);
         }
 
-        const blockData = block.create(payload);
+        // Construct block data directly from the payload — DON'T call
+        // block.create(payload) which would merge editor defaults
+        // (padding, border, direction, colors, etc.) into the user's
+        // source attributes. The create() function is only for new
+        // blocks added within the editor.
+        const blockData: IBlockData = {
+          type: block.type,
+          attributes: { ...payload.attributes },
+          data: { value: { ...payload.data.value } },
+          children: payload.children || [],
+        };
 
-        // format padding
+        // format padding (normalize shorthand)
         formatPadding(blockData.attributes, 'padding');
         formatPadding(blockData.attributes, 'inner-padding');
         return blockData;

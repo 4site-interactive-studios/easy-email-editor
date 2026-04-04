@@ -122,7 +122,6 @@ export const Page = createBlock<IPage>({
                 ?.filter(Boolean)
                 .map(item => `<mj-font name="${item.name}" href="${item.href}" />`)}
             <mj-attributes>
-              ${value.headAttributes}
               ${
                 value['font-family']
                   ? `<mj-all font-family="${value['font-family'].replace(/"/gm, '')}" />`
@@ -130,8 +129,8 @@ export const Page = createBlock<IPage>({
               }
               ${value['font-size'] ? `<mj-text font-size="${value['font-size']}" />` : ''}
               ${value['text-color'] ? `<mj-text color="${value['text-color']}" />` : ''}
-        ${value['line-height'] ? `<mj-text line-height="${value['line-height']}" />` : ''}
-        ${value['font-weight'] ? `<mj-text font-weight="${value['font-weight']}" />` : ''}
+              ${value['line-height'] ? `<mj-text line-height="${value['line-height']}" />` : ''}
+              ${value['font-weight'] ? `<mj-text font-weight="${value['font-weight']}" />` : ''}
               ${
                 value['content-background-color']
                   ? `<mj-wrapper background-color="${value['content-background-color']}" />
@@ -139,7 +138,7 @@ export const Page = createBlock<IPage>({
             `
                   : ''
               }
-
+              ${value.headAttributes}
             </mj-attributes>
           </mj-head>
           <mj-body ${getAdapterAttributesString(params)}>`}
