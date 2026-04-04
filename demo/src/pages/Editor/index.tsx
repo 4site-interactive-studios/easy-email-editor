@@ -374,17 +374,27 @@ export default function Editor() {
       const mjml = (await import('mjml-browser')).default;
       const mjmlStr = JsonToMjml({ data: content, mode: 'production', context: content });
       const result = mjml(mjmlStr, { validationLevel: 'soft' });
-      // Filter out false positives from non-standard tags and default attributes
-      // that the editor generates internally (not user-authored MJML)
+
+      // Determine which lines are inside <mj-head> (editor-generated, not user content)
+      // so we can filter false-positive validation errors from that section
+      const lines = mjmlStr.split('\n');
+      let headStartLine = 0;
+      let headEndLine = 0;
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].includes('<mj-head>') || lines[i].includes('<mj-head ')) headStartLine = i + 1;
+        if (lines[i].includes('</mj-head>')) { headEndLine = i + 1; break; }
+      }
+
       const filteredErrors = (result.errors || []).filter((err: any) => {
+        // Skip all errors originating from <mj-head> section — these are editor-generated
+        // defaults (mj-attributes, mj-html-attributes, mj-style, etc.), not user content
+        if (headEndLine > 0 && err.line >= headStartLine && err.line <= headEndLine) return false;
         // mj-html-attribute(s) are used by easy-email metadata system
         if (err.tagName === 'html-attribute' || err.tagName === 'html-attributes') return false;
-        // mj-meta is not standard MJML but may appear in validation from <meta> inside mj-raw
+        // mj-meta is not standard MJML but may appear from <meta> inside mj-raw
         if (err.tagName === 'meta') return false;
         const msg = err.message || err.formattedMessage || '';
-        // Padding defaults in <mj-attributes> section (editor-generated, not user content)
-        if (msg.includes('mj-attributes') || (msg.includes('Attribute padding has invalid value') && msg.includes('0'))) return false;
-        // mj-raw illegal attributes — these get inherited from parent blocks during import
+        // mj-raw illegal attributes — inherited from parent blocks during import
         if ((err.tagName === 'mj-raw' || err.tagName === 'raw') && msg.includes('illegal')) return false;
         return true;
       });
