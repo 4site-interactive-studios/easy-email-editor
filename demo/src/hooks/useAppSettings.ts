@@ -5,11 +5,15 @@ const SETTINGS_KEY = 'easy-email-app-settings';
 export interface AppSettings {
   hideIconToolbar: boolean;
   multiUserEnabled: boolean;
+  moveOutEnabled: boolean;
+  moveInEnabled: boolean;
 }
 
 const defaults: AppSettings = {
   hideIconToolbar: true,
   multiUserEnabled: false,
+  moveOutEnabled: false,
+  moveInEnabled: false,
 };
 
 function loadSettings(): AppSettings {

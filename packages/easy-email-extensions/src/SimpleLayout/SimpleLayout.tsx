@@ -322,9 +322,8 @@ export const SimpleLayout: React.FC<
               height: '100%',
               borderLeft: 'none',
               display: rightCollapsed ? 'none' : undefined,
-              overflow: 'hidden',
             }}
-            bodyStyle={{ padding: 0, height: '100%', overflow: 'hidden' }}
+            bodyStyle={{ padding: 0, height: '100%', overflowY: 'auto', overflowX: 'hidden' }}
             className={styles.customScrollBarV2}
           >
             <Tabs className={styles.layoutTabs}>

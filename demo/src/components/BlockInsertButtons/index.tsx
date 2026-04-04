@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Type, Image, Square, Minus, ArrowDownUp, Columns, LayoutTemplate, ChevronRight, ChevronUp, ChevronDown, Table2, ListCollapse, Navigation, Share2, Code, Box } from 'lucide-react';
-import { BlockManager, BasicType, getSiblingIdx } from 'easy-email-core';
+import { Plus, Type, Image, Square, Minus, ArrowDownUp, Columns, LayoutTemplate, ChevronRight, ChevronUp, ChevronDown, CornerLeftUp, CornerRightDown, Table2, ListCollapse, Navigation, Share2, Code, Box } from 'lucide-react';
+import { BlockManager, BasicType, getSiblingIdx, getParentIdx } from 'easy-email-core';
 import { useBlock, useFocusIdx, getBlockNodeByIdx } from 'easy-email-editor';
+import { getAppSettings } from '@demo/hooks/useAppSettings';
 import { get } from 'lodash';
 
 // ── Block icon mapping ────────────────────────────────────────────────────────
@@ -27,29 +28,16 @@ const BLOCK_ICONS: Record<string, React.ReactNode> = {
 };
 
 const HIDDEN_BLOCK_TYPES = new Set([
-  BasicType.PAGE,
-  BasicType.TEMPLATE,
-  BasicType.ACCORDION_ELEMENT,
-  BasicType.ACCORDION_TITLE,
-  BasicType.ACCORDION_TEXT,
+  BasicType.PAGE, BasicType.TEMPLATE,
+  BasicType.ACCORDION_ELEMENT, BasicType.ACCORDION_TITLE, BasicType.ACCORDION_TEXT,
 ]);
 
 const BLOCK_NAMES: Record<string, string> = {
-  [BasicType.TEXT]: 'Text',
-  [BasicType.IMAGE]: 'Image',
-  [BasicType.BUTTON]: 'Button',
-  [BasicType.DIVIDER]: 'Divider',
-  [BasicType.SPACER]: 'Spacer',
-  [BasicType.SECTION]: 'Section',
-  [BasicType.WRAPPER]: 'Wrapper',
-  [BasicType.COLUMN]: 'Column',
-  [BasicType.GROUP]: 'Group',
-  [BasicType.HERO]: 'Hero',
-  [BasicType.CAROUSEL]: 'Carousel',
-  [BasicType.NAVBAR]: 'Navbar',
-  [BasicType.SOCIAL]: 'Social',
-  [BasicType.TABLE]: 'Table',
-  [BasicType.ACCORDION]: 'Accordion',
+  [BasicType.TEXT]: 'Text', [BasicType.IMAGE]: 'Image', [BasicType.BUTTON]: 'Button',
+  [BasicType.DIVIDER]: 'Divider', [BasicType.SPACER]: 'Spacer', [BasicType.SECTION]: 'Section',
+  [BasicType.WRAPPER]: 'Wrapper', [BasicType.COLUMN]: 'Column', [BasicType.GROUP]: 'Group',
+  [BasicType.HERO]: 'Hero', [BasicType.CAROUSEL]: 'Carousel', [BasicType.NAVBAR]: 'Navbar',
+  [BasicType.SOCIAL]: 'Social', [BasicType.TABLE]: 'Table', [BasicType.ACCORDION]: 'Accordion',
   [BasicType.RAW]: 'Raw HTML',
 };
 
@@ -69,6 +57,8 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
   const [rect, setRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const popupRef = useRef<HTMLDivElement>(null);
 
+  const settings = getAppSettings();
+
   // Get the parent block info
   const parentInfo = useMemo(() => {
     if (!focusIdx || focusIdx === 'content') return null;
@@ -79,19 +69,29 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
     const childIndex = parseInt(match[2], 10);
     const parentBlock = get(values, parentIdx);
     const childCount = parentBlock?.children?.length ?? 0;
+    const parentName = getBlockName(parentBlock);
 
     const prevSibling = childIndex > 0 ? parentBlock?.children?.[childIndex - 1] : null;
     const nextSibling = childIndex < childCount - 1 ? parentBlock?.children?.[childIndex + 1] : null;
+
+    const isFirst = childIndex === 0;
+    const isLast = childIndex === childCount - 1;
+    const canMoveOut = parentIdx !== 'content';
 
     return {
       parentIdx,
       childIndex,
       childCount,
       parentType: parentBlock?.type as string | undefined,
+      parentName,
       canMoveUp: childIndex > 0,
       canMoveDown: childIndex < childCount - 1,
+      canMoveOut,
+      isFirst,
+      isLast,
       upLabel: prevSibling ? `Move before the ${getBlockName(prevSibling)}` : '',
       downLabel: nextSibling ? `Move after the ${getBlockName(nextSibling)}` : '',
+      outLabel: canMoveOut ? `Move out of the ${parentName}` : '',
     };
   }, [focusIdx, values]);
 
@@ -103,19 +103,12 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
         if (HIDDEN_BLOCK_TYPES.has(block.type as BasicType)) return false;
         return block.validParentType.includes(parentInfo.parentType!);
       })
-      .sort((a, b) => {
-        const nameA = BLOCK_NAMES[a.type] || a.name || a.type;
-        const nameB = BLOCK_NAMES[b.type] || b.name || b.type;
-        return nameA.localeCompare(nameB);
-      });
+      .sort((a, b) => (BLOCK_NAMES[a.type] || a.name || a.type).localeCompare(BLOCK_NAMES[b.type] || b.name || b.type));
   }, [parentInfo?.parentType]);
 
   // Track the focused block's DOM rect
   useEffect(() => {
-    if (!focusIdx || focusIdx === 'content' || !containerRef.current) {
-      setRect(null);
-      return;
-    }
+    if (!focusIdx || focusIdx === 'content' || !containerRef.current) { setRect(null); return; }
     const updateRect = () => {
       const container = containerRef.current;
       if (!container) return;
@@ -123,33 +116,21 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
       if (!el) { setRect(null); return; }
       const elRect = el.getBoundingClientRect();
       const containerRect = container.getBoundingClientRect();
-      setRect({
-        top: elRect.top - containerRect.top,
-        left: elRect.left - containerRect.left,
-        width: elRect.width,
-        height: elRect.height,
-      });
+      setRect({ top: elRect.top - containerRect.top, left: elRect.left - containerRect.left, width: elRect.width, height: elRect.height });
     };
     const timer = setTimeout(updateRect, 100);
     const interval = setInterval(updateRect, 200);
     const editorRoot = document.getElementById('VisualEditorEditMode');
-    const shadowRoot = editorRoot?.shadowRoot;
-    const scrollContainer = shadowRoot?.querySelector('.shadow-container') || shadowRoot;
+    const scrollContainer = editorRoot?.shadowRoot?.querySelector('.shadow-container') || editorRoot?.shadowRoot;
     const onScroll = () => updateRect();
     if (scrollContainer) scrollContainer.addEventListener('scroll', onScroll, true);
-    return () => {
-      clearTimeout(timer);
-      clearInterval(interval);
-      if (scrollContainer) scrollContainer.removeEventListener('scroll', onScroll, true);
-    };
+    return () => { clearTimeout(timer); clearInterval(interval); if (scrollContainer) scrollContainer.removeEventListener('scroll', onScroll, true); };
   }, [focusIdx, containerRef]);
 
   // Close popup on click outside
   useEffect(() => {
     if (!popup) return;
-    const handleClick = (e: MouseEvent) => {
-      if (popupRef.current && !popupRef.current.contains(e.target as Node)) setPopup(null);
-    };
+    const handleClick = (e: MouseEvent) => { if (popupRef.current && !popupRef.current.contains(e.target as Node)) setPopup(null); };
     const timer = setTimeout(() => document.addEventListener('mousedown', handleClick), 50);
     return () => { clearTimeout(timer); document.removeEventListener('mousedown', handleClick); };
   }, [popup]);
@@ -158,11 +139,7 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
 
   const handleInsert = useCallback((blockType: string, position: 'above' | 'below') => {
     if (!parentInfo) return;
-    addBlock({
-      type: blockType,
-      parentIdx: parentInfo.parentIdx,
-      positionIndex: position === 'above' ? parentInfo.childIndex : parentInfo.childIndex + 1,
-    });
+    addBlock({ type: blockType, parentIdx: parentInfo.parentIdx, positionIndex: position === 'above' ? parentInfo.childIndex : parentInfo.childIndex + 1 });
     setPopup(null);
   }, [parentInfo, addBlock]);
 
@@ -176,95 +153,137 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
     moveBlock(focusIdx, getSiblingIdx(focusIdx, 1));
   }, [focusIdx, moveBlock]);
 
+  const handleMoveUpAndOut = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!parentInfo?.parentIdx || !parentInfo.canMoveOut) return;
+    const grandparentIdx = getParentIdx(parentInfo.parentIdx);
+    if (!grandparentIdx) return;
+    const parentMatch = parentInfo.parentIdx.match(/\.children\.\[(\d+)\]$/);
+    if (!parentMatch) return;
+    const parentChildIndex = parseInt(parentMatch[1], 10);
+    // Move before the parent
+    moveBlock(focusIdx, `${grandparentIdx}.children.[${parentChildIndex}]`);
+  }, [focusIdx, moveBlock, parentInfo]);
+
+  const handleMoveDownAndOut = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!parentInfo?.parentIdx || !parentInfo.canMoveOut) return;
+    const grandparentIdx = getParentIdx(parentInfo.parentIdx);
+    if (!grandparentIdx) return;
+    const parentMatch = parentInfo.parentIdx.match(/\.children\.\[(\d+)\]$/);
+    if (!parentMatch) return;
+    const parentChildIndex = parseInt(parentMatch[1], 10);
+    // Move after the parent
+    moveBlock(focusIdx, `${grandparentIdx}.children.[${parentChildIndex + 1}]`);
+  }, [focusIdx, moveBlock, parentInfo]);
+
   if (!rect || !parentInfo || validBlocks.length === 0 || !containerRef.current) return null;
 
   const centerX = rect.left + rect.width / 2;
 
-  // Shared small button styles
-  const smallBtn: React.CSSProperties = {
-    width: 24,
+  // Show "up and out" when block is first child and can move out
+  const showUpAndOut = settings.moveOutEnabled && parentInfo.isFirst && parentInfo.canMoveOut && !parentInfo.canMoveUp;
+  // Show "down and out" when block is last child and can move out
+  const showDownAndOut = settings.moveOutEnabled && parentInfo.isLast && parentInfo.canMoveOut && !parentInfo.canMoveDown;
+
+  // ── Pill styles ──
+  const pillStyle: React.CSSProperties = {
+    position: 'absolute',
+    transform: 'translateX(-50%)',
+    display: 'flex',
+    zIndex: 15,
+    pointerEvents: 'auto',
+    borderRadius: 12,
+    overflow: 'hidden',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.8)',
     height: 24,
-    borderRadius: '50%',
-    border: '2px solid #fff',
-    cursor: 'pointer',
+  };
+
+  const segmentBase: React.CSSProperties = {
+    height: 24,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-    padding: 0,
-    position: 'absolute',
-    zIndex: 15,
+    cursor: 'pointer',
+    border: 'none',
+    padding: '0 6px',
+    fontSize: 12,
+    lineHeight: '24px',
   };
 
-  const plusBtnStyle: React.CSSProperties = {
-    ...smallBtn,
-    background: '#4f46e5',
-    color: '#fff',
-  };
-
-  const moveBtnStyle: React.CSSProperties = {
-    ...smallBtn,
+  const moveSegment: React.CSSProperties = {
+    ...segmentBase,
     background: 'var(--selected-color, #1890ff)',
     color: '#fff',
+    minWidth: 24,
+  };
+
+  const plusSegment: React.CSSProperties = {
+    ...segmentBase,
+    background: '#4f46e5',
+    color: '#fff',
+    minWidth: 24,
+  };
+
+  const divider: React.CSSProperties = {
+    width: 1,
+    background: 'rgba(255,255,255,0.3)',
+    alignSelf: 'stretch',
   };
 
   return createPortal(
     <>
-      {/* ── Top row: move up + insert above ── */}
-      <div style={{
-        position: 'absolute',
-        top: rect.top - 12,
-        left: centerX,
-        transform: 'translateX(-50%)',
-        display: 'flex',
-        gap: 4,
-        zIndex: 15,
-        pointerEvents: 'auto',
-      }}>
+      {/* ── Top pill: [↑ Move Up] | [+ Insert] | [↰ Up & Out] ── */}
+      <div style={{ ...pillStyle, top: rect.top - 12, left: centerX }}>
         {parentInfo.canMoveUp && (
-          <button
-            style={moveBtnStyle}
-            onClick={handleMoveUp}
-            title={parentInfo.upLabel}
-          >
-            <ChevronUp size={14} strokeWidth={2.5} />
-          </button>
+          <>
+            <button style={moveSegment} onClick={handleMoveUp} title={parentInfo.upLabel}>
+              <ChevronUp size={14} strokeWidth={2.5} />
+            </button>
+            <div style={divider} />
+          </>
         )}
         <button
-          style={plusBtnStyle}
+          style={plusSegment}
           onClick={e => { e.stopPropagation(); setPopup(popup === 'above' ? null : 'above'); }}
           title='Insert block above'
         >
           <Plus size={14} strokeWidth={3} />
         </button>
+        {showUpAndOut && (
+          <>
+            <div style={divider} />
+            <button style={moveSegment} onClick={handleMoveUpAndOut} title={`Move up and out of the ${parentInfo.parentName}`}>
+              <CornerLeftUp size={13} strokeWidth={2.5} />
+            </button>
+          </>
+        )}
       </div>
 
-      {/* ── Bottom row: insert below + move down ── */}
-      <div style={{
-        position: 'absolute',
-        top: rect.top + rect.height - 12,
-        left: centerX,
-        transform: 'translateX(-50%)',
-        display: 'flex',
-        gap: 4,
-        zIndex: 15,
-        pointerEvents: 'auto',
-      }}>
+      {/* ── Bottom pill: [↳ Down & Out] | [+ Insert] | [↓ Move Down] ── */}
+      <div style={{ ...pillStyle, top: rect.top + rect.height - 12, left: centerX }}>
+        {showDownAndOut && (
+          <>
+            <button style={moveSegment} onClick={handleMoveDownAndOut} title={`Move down and out of the ${parentInfo.parentName}`}>
+              <CornerRightDown size={13} strokeWidth={2.5} />
+            </button>
+            <div style={divider} />
+          </>
+        )}
         <button
-          style={plusBtnStyle}
+          style={plusSegment}
           onClick={e => { e.stopPropagation(); setPopup(popup === 'below' ? null : 'below'); }}
           title='Insert block below'
         >
           <Plus size={14} strokeWidth={3} />
         </button>
         {parentInfo.canMoveDown && (
-          <button
-            style={moveBtnStyle}
-            onClick={handleMoveDown}
-            title={parentInfo.downLabel}
-          >
-            <ChevronDown size={14} strokeWidth={2.5} />
-          </button>
+          <>
+            <div style={divider} />
+            <button style={moveSegment} onClick={handleMoveDown} title={parentInfo.downLabel}>
+              <ChevronDown size={14} strokeWidth={2.5} />
+            </button>
+          </>
         )}
       </div>
 
@@ -291,11 +310,8 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
           }}>
             <div style={{
               padding: '6px 12px 4px',
-              fontSize: 10,
-              fontWeight: 600,
-              color: '#9ca3af',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
+              fontSize: 10, fontWeight: 600, color: '#9ca3af',
+              textTransform: 'uppercase', letterSpacing: '0.05em',
             }}>
               Insert {popup}
             </div>
@@ -303,25 +319,15 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
               <button
                 key={block.type}
                 style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '6px 12px',
-                  fontSize: 13,
-                  color: '#374151',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  textAlign: 'left',
+                  width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '6px 12px', fontSize: 13, color: '#374151',
+                  background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
                 }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#eef2ff'; (e.currentTarget as HTMLElement).style.color = '#4338ca'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = '#374151'; }}
                 onClick={() => handleInsert(block.type, popup)}
               >
-                <span style={{ color: '#9ca3af', flexShrink: 0 }}>
-                  {BLOCK_ICONS[block.type] || <Box size={16} />}
-                </span>
+                <span style={{ color: '#9ca3af', flexShrink: 0 }}>{BLOCK_ICONS[block.type] || <Box size={16} />}</span>
                 {BLOCK_NAMES[block.type] || block.name || block.type}
               </button>
             ))}
