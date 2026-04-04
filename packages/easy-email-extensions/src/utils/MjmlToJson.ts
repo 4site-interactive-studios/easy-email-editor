@@ -38,24 +38,43 @@ export function MjmlToJson(data: MjmlBlockItem | string): IPage {
           ?.filter((item) => item.tagName === 'mj-style')
           .map((item) => ({ content: item.content, inline: item.inline }));
 
+        // Extract mj-title and mj-preview
+        const titleNode = head?.children?.find((item) => item.tagName === 'mj-title');
+        const previewNode = head?.children?.find((item) => item.tagName === 'mj-preview');
+
         // Preserve ALL mj-attributes as headAttributes string.
-        // For fresh imports (not from easy-email), metaData is empty, so
-        // nothing is filtered out — all user declarations are preserved.
+        // Filter out:
+        // 1. mj-raw nodes (comments inside mj-attributes from mjml-browser parser)
+        // 2. Easy-email metadata attributes (only if metaData actually has values)
         const headAttributes = [
           ...new Set(
             mjAttributes
               .filter((item) => {
-                const isFontFamily =
-                  item.tagName === 'mj-all' &&
-                  item.attributes['font-family'] === metaData['font-family'];
-                const isTextColor =
-                  item.tagName === 'mj-text' &&
-                  item.attributes['color'] === metaData['text-color'];
-                const isContentColor =
-                  ['mj-wrapper', 'mj-section'].includes(item.tagName) &&
-                  item.attributes['background-color'] ===
-                  metaData['content-background-color'];
-                return !isFontFamily && !isTextColor && !isContentColor;
+                // Skip mj-raw (comments converted by mjml-browser)
+                if (item.tagName === 'mj-raw') return false;
+
+                // Only filter metadata matches when metaData actually has values
+                // (prevents undefined === undefined from removing unrelated entries)
+                if (metaData['font-family']) {
+                  const isFontFamily =
+                    item.tagName === 'mj-all' &&
+                    item.attributes['font-family'] === metaData['font-family'];
+                  if (isFontFamily) return false;
+                }
+                if (metaData['text-color']) {
+                  const isTextColor =
+                    item.tagName === 'mj-text' &&
+                    item.attributes['color'] === metaData['text-color'];
+                  if (isTextColor) return false;
+                }
+                if (metaData['content-background-color']) {
+                  const isContentColor =
+                    ['mj-wrapper', 'mj-section'].includes(item.tagName) &&
+                    item.attributes['background-color'] ===
+                    metaData['content-background-color'];
+                  if (isContentColor) return false;
+                }
+                return true;
               })
               .map(
                 (item) =>
@@ -77,9 +96,17 @@ export function MjmlToJson(data: MjmlBlockItem | string): IPage {
           .filter(Boolean)
           .join('\n') || '';
 
+        // Build extra head tags (mj-title, mj-preview) to preserve
+        let extraHeadTags = '';
+        if (titleNode) {
+          extraHeadTags += `<mj-title>${titleNode.content || ''}</mj-title>\n`;
+        }
+        if (previewNode) {
+          extraHeadTags += `<mj-preview>${previewNode.content || ''}</mj-preview>\n`;
+        }
+
         // Construct Page directly — don't call Page.create() to avoid
-        // injecting editor defaults (font-family, font-size, etc.) that
-        // would override the user's <mj-attributes> declarations.
+        // injecting editor defaults (font-family, font-size, etc.)
         const pageData: IPage = {
           type: BasicType.PAGE,
           attributes: body.attributes || {},
@@ -91,12 +118,7 @@ export function MjmlToJson(data: MjmlBlockItem | string): IPage {
               fonts: fonts,
               breakpoint: breakpoint?.attributes.width || '',
               responsive: true,
-              extraHeadContent: extraHeadContent || undefined,
-              // Only include metadata fields that were actually present
-              // in the source MJML (from easy-email's mj-html-attributes).
-              // For fresh imports, metaData is empty — the Page render
-              // won't emit font/color declarations, keeping the user's
-              // headAttributes as the sole <mj-attributes> content.
+              extraHeadContent: (extraHeadTags + (extraHeadContent || '')).trim() || undefined,
               ...metaData,
             },
           },
@@ -146,7 +168,6 @@ export function MjmlToJson(data: MjmlBlockItem | string): IPage {
           payload.data.value.links =
             item.children?.map((child) => {
               const navbarLinkData = {
-                // Use only the source attributes — no hardcoded defaults
                 ...child.attributes,
                 content: child.content,
               };
@@ -169,9 +190,6 @@ export function MjmlToJson(data: MjmlBlockItem | string): IPage {
 
         // Construct block data directly from the payload — DON'T call
         // block.create(payload) which would merge editor defaults
-        // (padding, border, direction, colors, etc.) into the user's
-        // source attributes. The create() function is only for new
-        // blocks added within the editor.
         const blockData: IBlockData = {
           type: block.type,
           attributes: { ...payload.attributes },
@@ -179,9 +197,10 @@ export function MjmlToJson(data: MjmlBlockItem | string): IPage {
           children: payload.children || [],
         };
 
-        // format padding (normalize shorthand)
-        formatPadding(blockData.attributes, 'padding');
-        formatPadding(blockData.attributes, 'inner-padding');
+        // Format padding — but preserve individual side attributes
+        // (e.g., padding-bottom should stay as padding-bottom, not become padding)
+        formatPaddingPreserving(blockData.attributes, 'padding');
+        formatPaddingPreserving(blockData.attributes, 'inner-padding');
         return blockData;
     }
   };
@@ -220,21 +239,29 @@ export function getMetaDataFromMjml(data?: IChildrenItem): {
   return pickBy(mjmlHtmlAttributes, identity);
 }
 
-function formatPadding(
+/**
+ * Format padding — preserves individual side attributes as-is.
+ * Only normalizes the shorthand `padding`/`inner-padding` attribute
+ * (NOT padding-top, padding-bottom, etc. which are separate MJML attributes).
+ *
+ * The old formatPadding incorrectly merged padding-bottom into padding,
+ * changing the semantic meaning. This version keeps them separate.
+ */
+function formatPaddingPreserving(
   attributes: IBlockData['attributes'],
   attributeName: 'padding' | 'inner-padding'
 ) {
-  const ele = document.createElement('div');
-  Object.keys(attributes).forEach((key: string) => {
-    if (new RegExp(`^${attributeName}`).test(key)) {
-      const formatKey = new RegExp(`^${attributeName}(.*)`).exec(key)?.[0];
+  // Only process the shorthand attribute if it exists
+  // Individual side attributes (padding-top, padding-bottom, etc.)
+  // are valid MJML attributes and should be preserved as-is
+  const shorthand = attributes[attributeName];
+  if (!shorthand || !isString(shorthand)) return;
 
-      if (formatKey) {
-        ele.style[formatKey as any] = attributes[key];
-        delete attributes[key];
-      }
-    }
-  });
+  // Normalize the shorthand value via DOM style parsing
+  // This handles things like "0" → "0px 0px 0px 0px" or "32px" → "32px 32px 32px 32px"
+  // But we intentionally DON'T merge individual-side attributes into shorthand
+  const ele = document.createElement('div');
+  ele.style[attributeName as any] = shorthand;
   const newPadding = [
     ele.style.paddingTop,
     ele.style.paddingRight,

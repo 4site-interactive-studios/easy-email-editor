@@ -30,13 +30,17 @@ export function getAdapterAttributesString(
     );
   }
 
+  // Attributes where empty string "" is a valid, intentional value
+  // that should be preserved in the output (e.g., alt="" for accessibility)
+  const PRESERVE_EMPTY = new Set(['alt']);
+
   let attributeStr = '';
   for (let key in attributes) {
     const keyName = key as keyof typeof attributes;
     const val = attributes[keyName];
     if (typeof val === 'boolean') {
       attributeStr += `${key}="${val.toString()}" `;
-    } else if (isString(val) && val) {
+    } else if (isString(val) && (val || PRESERVE_EMPTY.has(key))) {
       attributeStr += `${key}="${val.replace(/"/gm, '')}" `;
     }
   }

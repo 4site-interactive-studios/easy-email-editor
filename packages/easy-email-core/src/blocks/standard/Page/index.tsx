@@ -103,9 +103,24 @@ export const Page = createBlock<IPage>({
         }</mj-style>`
       : '';
 
-    const extraHeadContent = value.extraHeadContent
-      ? `<mj-raw>${value.extraHeadContent}</mj-raw>`
-      : '';
+    // Extra head content may include mj-title, mj-preview, and mj-raw blocks.
+    // mj-title and mj-preview are emitted as-is (not wrapped in mj-raw).
+    // Everything else is wrapped in mj-raw.
+    let extraHeadContent = '';
+    if (value.extraHeadContent) {
+      const raw = value.extraHeadContent;
+      // Extract mj-title and mj-preview tags to emit directly
+      const titleMatch = raw.match(/<mj-title>[\s\S]*?<\/mj-title>/i);
+      const previewMatch = raw.match(/<mj-preview>[\s\S]*?<\/mj-preview>/i);
+      if (titleMatch) extraHeadContent += titleMatch[0] + '\n';
+      if (previewMatch) extraHeadContent += previewMatch[0] + '\n';
+      // The rest goes inside mj-raw (meta tags, MSO conditionals, etc.)
+      let remaining = raw;
+      if (titleMatch) remaining = remaining.replace(titleMatch[0], '');
+      if (previewMatch) remaining = remaining.replace(previewMatch[0], '');
+      remaining = remaining.trim();
+      if (remaining) extraHeadContent += `<mj-raw>${remaining}</mj-raw>`;
+    }
 
     return (
       <>
