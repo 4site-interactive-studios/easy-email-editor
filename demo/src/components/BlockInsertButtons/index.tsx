@@ -306,7 +306,7 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
         )}
       </div>
 
-      {/* ── Bottom pill: [+ Insert] | [↳ Down & Out] | [↓ Move Down] ── */}
+      {/* ── Bottom pill: [+ Insert] | [⧉ Copy] | [↳ Down & Out] | [↓ Move Down] ── */}
       <div style={{ ...pillStyle, top: rect.top + rect.height - 12, left: centerX }}>
         <button
           style={plusSegment}
@@ -314,6 +314,14 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
           title='Insert block below'
         >
           <Plus size={14} strokeWidth={3} />
+        </button>
+        <div style={divider} />
+        <button
+          style={{ ...moveSegment, background: '#6366f1' }}
+          onClick={e => { e.stopPropagation(); handleDuplicate(); }}
+          title='Duplicate this block'
+        >
+          <Copy size={13} strokeWidth={2.5} />
         </button>
         {showDownAndOut && (
           <>
@@ -354,21 +362,6 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
             maxHeight: 300,
             overflowY: 'auto',
           }}>
-            {/* Duplicate option */}
-            <button
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                padding: '6px 12px', fontSize: 13, color: '#374151',
-                background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
-              }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#eef2ff'; (e.currentTarget as HTMLElement).style.color = '#4338ca'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = '#374151'; }}
-              onClick={handleDuplicate}
-            >
-              <span style={{ color: '#9ca3af', flexShrink: 0 }}><Copy size={16} /></span>
-              Duplicate this block
-            </button>
-            <div style={{ height: 1, background: '#e5e7eb', margin: '4px 0' }} />
             <div style={{
               padding: '6px 12px 4px',
               fontSize: 10, fontWeight: 600, color: '#9ca3af',
