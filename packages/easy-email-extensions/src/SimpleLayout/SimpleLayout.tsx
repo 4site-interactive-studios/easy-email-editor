@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useWindowSize } from 'react-use';
 import { SourceCodePanel } from '../SourceCodePanel';
 import { BlockMjmlPanel } from '../BlockMjmlPanel';
+import { PlaintextPanel } from '../PlaintextPanel';
 import { AttributePanel } from '../AttributePanel';
 import { BlockLayer, BlockLayerProps } from '../BlockLayer';
 import { InteractivePrompt } from '../InteractivePrompt';
@@ -363,14 +364,25 @@ export const SimpleLayout: React.FC<
               </Tabs.TabPane>
               <Tabs.TabPane
                 destroyOnHide
-                key='Block MJML'
+                key='MJML'
                 title={
                   <div style={{ height: 31, lineHeight: '31px' }}>
-                    {t('Block MJML')}
+                    {t('MJML')}
                   </div>
                 }
               >
                 {props.blockMjmlPanel || <BlockMjmlPanel />}
+              </Tabs.TabPane>
+              <Tabs.TabPane
+                destroyOnHide
+                key='Plaintext'
+                title={
+                  <div style={{ height: 31, lineHeight: '31px' }}>
+                    {t('Plaintext')}
+                  </div>
+                }
+              >
+                <PlaintextPanel />
               </Tabs.TabPane>
               {showSourceCode && (
                 <Tabs.TabPane

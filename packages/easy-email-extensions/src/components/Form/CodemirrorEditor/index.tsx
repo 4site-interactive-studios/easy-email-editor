@@ -10,13 +10,15 @@ import styles from './index.module.scss';
 export default function CodemirrorEditor(props: {
   value: string;
   onChange(val: string): void;
+  onBlur?(): void;
 }) {
-  const { value, onChange } = props;
+  const { value, onChange, onBlur } = props;
   return (
     <CodeMirror
       className={styles.container}
       value={value}
       onBeforeChange={(editor, data, value) => onChange(value)}
+      onBlur={onBlur}
       options={{
         mode: 'xml',
         theme: 'material',
