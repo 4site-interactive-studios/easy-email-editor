@@ -30,7 +30,7 @@ import { ContextMenu } from './components/ContextMenu';
 import { classnames } from '@extensions/utils/classnames';
 import { getDirectionFormDropPosition, useAvatarWrapperDrop } from './hooks/useAvatarWrapperDrop';
 import { getIconNameByBlockType } from '@extensions/utils/getIconNameByBlockType';
-import { Space, Switch } from '@arco-design/web-react';
+import { Space } from '@arco-design/web-react';
 import { getBlockTitle } from '@extensions/utils/getBlockTitle';
 
 export interface IBlockDataWithId extends IBlockData {
@@ -64,7 +64,7 @@ export function BlockLayer(props: BlockLayerProps) {
     top: number;
   } | null>(null);
 
-  const [focusOnly, setFocusOnly] = useState(false);
+  // Removed "Selected only" toggle — always show the full tree
   // null = no forced state; string[] = force these keys
   const [forceExpandedKeys, setForceExpandedKeys] = useState<string[] | null>(null);
 
@@ -186,37 +186,7 @@ export function BlockLayer(props: BlockLayerProps) {
     return [copyData];
   }, [pageData]);
 
-  const treeData = useMemo(() => {
-    if (!focusOnly || !focusIdx) return fullTreeData;
-
-    const findNode = (node: IBlockDataWithId, targetId: string): IBlockDataWithId | null => {
-      if (node.id === targetId) return node;
-      for (const child of node.children) {
-        const found = findNode(child, targetId);
-        if (found) return found;
-      }
-      return null;
-    };
-
-    const root = fullTreeData[0];
-    if (!root) return fullTreeData;
-
-    const focusedNode = findNode(root, focusIdx);
-    if (!focusedNode) return fullTreeData;
-
-    // Walk up to the nearest wrapper/container (or page if none)
-    const containerTypes = new Set([
-      BasicType.WRAPPER, BasicType.PAGE,
-      'advanced_wrapper',
-    ]);
-
-    let container: IBlockDataWithId = focusedNode;
-    while (container.parent && !containerTypes.has(container.type)) {
-      container = container.parent;
-    }
-
-    return [container];
-  }, [fullTreeData, focusOnly, focusIdx]);
+  const treeData = fullTreeData;
 
   const handleExpandAll = useCallback(() => {
     const ids: string[] = [];
@@ -398,14 +368,6 @@ export function BlockLayer(props: BlockLayerProps) {
           >
             {t('Collapse')}
           </span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ fontSize: 11 }}>{t('Selected only')}</span>
-          <Switch
-            size='small'
-            checked={focusOnly}
-            onChange={setFocusOnly}
-          />
         </div>
       </div>
       <BlockTree<IBlockDataWithId>

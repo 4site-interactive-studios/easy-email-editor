@@ -6,7 +6,6 @@ export interface AppSettings {
   multiUserEnabled: boolean;
   moveOutEnabled: boolean;
   moveInEnabled: boolean;
-  showLayoutPanel: boolean;
   hideEditorMetadata: boolean;
   showSpacerIndicator: boolean;
 }
@@ -15,7 +14,6 @@ const defaults: AppSettings = {
   multiUserEnabled: false,
   moveOutEnabled: false,
   moveInEnabled: false,
-  showLayoutPanel: false,
   hideEditorMetadata: false,
   showSpacerIndicator: true,
 };
