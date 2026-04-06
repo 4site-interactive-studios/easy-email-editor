@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { InputWithUnitField } from '../../../components/Form';
 import { useFocusIdx, Stack, useBlock, TextStyle, IconFont } from 'easy-email-editor';
 import { createBlockDataByType } from 'easy-email-core';
@@ -163,8 +163,15 @@ const PaddingChangeWrapper: React.FC<{ onChange: (val: string) => void }> = prop
     values: { top, right, bottom, left },
   } = useFormState();
   const { onChange } = props;
+  const mountedRef = useRef(false);
 
   useEffect(() => {
+    // Skip the initial mount to avoid writing default values back to
+    // blocks that don't have explicit padding (e.g., imported MJML)
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      return;
+    }
     onChange([top, right, bottom, left].join(' '));
   }, [top, right, bottom, left, onChange]);
 
