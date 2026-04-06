@@ -19,6 +19,13 @@ export function parseXMLtoBlock(text: string): IPage {
   const root = dom.firstChild as Element;
 
   if (!(dom.firstChild instanceof Element) || dom.querySelector('parsererror')) {
+    // XML parsing failed — try HTML parser as fallback for partial MJML
+    // with HTML entities (&rsquo;, &nbsp;, etc.) that aren't valid XML
+    const htmlDom = domParser.parseFromString(text, 'text/html');
+    const mjmlEl = htmlDom.querySelector('body')?.firstElementChild;
+    if (mjmlEl) {
+      return transformElement(mjmlEl) as IPage;
+    }
     throw new Error('Invalid content');
   }
 
