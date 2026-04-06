@@ -15,54 +15,50 @@ export default function Frame({
 }: FrameProps) {
   return (
     <div className='min-h-screen flex flex-col bg-gray-50'>
-      {/* Header */}
+      {/* Header with nav */}
       <header className='bg-gray-900 px-5 py-0 flex items-center h-[60px] shrink-0'>
-        <h1 className='text-white text-lg font-semibold m-0'>MJML Editor</h1>
+        <a href='/' className='text-white text-lg font-semibold m-0 hover:text-white no-underline'>
+          4Site's MJML Editor
+        </a>
+        <nav className='flex items-center ml-8 gap-1'>
+          <a
+            href='/'
+            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors no-underline ${
+              window.location.pathname === '/'
+                ? 'text-white bg-white/15'
+                : 'text-gray-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            Templates
+          </a>
+          <a
+            href='/settings'
+            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors no-underline ${
+              window.location.pathname === '/settings'
+                ? 'text-white bg-white/15'
+                : 'text-gray-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            Settings
+          </a>
+        </nav>
       </header>
 
-      <div className='flex flex-1 overflow-hidden'>
-        {/* Sidebar */}
-        <aside className='w-[200px] bg-white border-r border-gray-200 shrink-0 hidden md:block'>
-          <nav className='py-2 flex flex-col h-full'>
-            <a
-              href='/'
-              className={`block px-6 py-2 text-sm font-medium ${
-                window.location.pathname === '/'
-                  ? 'text-blue-600 bg-blue-50 border-r-2 border-blue-600'
-                  : 'text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              Templates
-            </a>
-            <a
-              href='/settings'
-              className={`block px-6 py-2 text-sm font-medium ${
-                window.location.pathname === '/settings'
-                  ? 'text-blue-600 bg-blue-50 border-r-2 border-blue-600'
-                  : 'text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              Settings
-            </a>
-          </nav>
-        </aside>
+      {/* Main content — no sidebar */}
+      <main className='flex-1 p-6 overflow-auto'>
+        {breadcrumb && (
+          <div className='text-sm text-gray-500 mb-2'>{breadcrumb}</div>
+        )}
 
-        {/* Main content */}
-        <main className='flex-1 p-6 overflow-auto'>
-          {breadcrumb && (
-            <div className='text-sm text-gray-500 mb-2'>{breadcrumb}</div>
-          )}
+        <div className='flex items-center justify-between mb-5'>
+          <h2 className='text-xl font-bold text-gray-900 m-0'>{title}</h2>
+          {primaryAction}
+        </div>
 
-          <div className='flex items-center justify-between mb-5'>
-            <h2 className='text-xl font-bold text-gray-900 m-0'>{title}</h2>
-            {primaryAction}
-          </div>
-
-          <div className='bg-white rounded-lg p-6 shadow-sm'>
-            {children}
-          </div>
-        </main>
-      </div>
+        <div className='bg-white rounded-lg p-6 shadow-sm'>
+          {children}
+        </div>
+      </main>
     </div>
   );
 }
