@@ -243,7 +243,15 @@ export const SimpleLayout: React.FC<
                           <input
                             type='checkbox'
                             checked={showLayoutColumn}
-                            onChange={e => setShowLayoutColumn(e.target.checked)}
+                            onChange={e => {
+                              const show = e.target.checked;
+                              setShowLayoutColumn(show);
+                              // Adjust sidebar width to keep config column proportional
+                              setSidebarWidth(w => show
+                                ? Math.min(SIDEBAR_MAX, w + layoutColumnWidth + 6)
+                                : Math.max(SIDEBAR_MIN, w - layoutColumnWidth - 6)
+                              );
+                            }}
                             style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
                           />
                           <div style={{
