@@ -195,7 +195,7 @@ export const SimpleLayout: React.FC<
           {!collapsed && <ResizeHandle side='left' onResize={onResizeLeft} />}
         </Layout.Sider>
 
-        <Layout style={{ height: containerHeight, position: 'relative' }}>
+        <Layout style={{ height: containerHeight, position: 'relative', overflow: 'hidden' }}>
           {/* Show expand tab when layout panel is manually collapsed */}
           {(showBlockLayer && layoutManuallyCollapsed) && (
             <div
@@ -314,6 +314,7 @@ export const SimpleLayout: React.FC<
             overflow: 'hidden',
             position: 'relative',
             flexShrink: 0,
+            zIndex: 20,
           }}
           className={styles.rightSide}
         >
