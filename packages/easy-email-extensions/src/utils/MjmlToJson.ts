@@ -3,7 +3,7 @@ import { identity, isString, pickBy } from 'lodash';
 import { parseXMLtoBlock } from './parseXMLtoBlock';
 
 // Attributes that are illegal on <mj-raw> — strip during import
-const RAW_ILLEGAL_ATTRS = new Set([
+export const RAW_ILLEGAL_ATTRS = new Set([
   'padding', 'border', 'direction', 'text-align',
   'background-repeat', 'background-size', 'background-position',
   'vertical-align', 'align', 'background-color',
@@ -197,21 +197,12 @@ export function MjmlToJson(data: MjmlBlockItem | string, skipDefaults = false): 
           payload.children = item.children.map(transform);
         }
 
-        let blockData: IBlockData;
         if (skipDefaults) {
-          // Import fidelity: use only source attributes, no defaults
-          blockData = {
-            type: block.type,
-            attributes: { ...payload.attributes },
-            data: { value: { ...payload.data.value } },
-            children: payload.children || [],
-          };
-        } else {
-          // Editor round-trip: merge defaults via block.create()
-          blockData = block.create(payload);
-          formatPadding(blockData.attributes, 'padding');
-          formatPadding(blockData.attributes, 'inner-padding');
+          return payload as IBlockData;
         }
+        const blockData = block.create(payload);
+        formatPadding(blockData.attributes, 'padding');
+        formatPadding(blockData.attributes, 'inner-padding');
         return blockData;
     }
   };

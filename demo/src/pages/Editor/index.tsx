@@ -333,8 +333,9 @@ export default function Editor() {
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const [codeMjml, setCodeMjml] = useState('');
   const codeMjmlRef = useRef('');
-  const codeOriginalContentRef = useRef<any>(null); // Block data at time of entering code mode
-  const codeUserEditedRef = useRef(false); // Whether user actually typed in code editor
+  const codeOriginalContentRef = useRef<IBlockData | null>(null);
+  const codeUserEditedRef = useRef(false);
+  const codeInitialFormatDoneRef = useRef(false);
   const [editorKey, setEditorKey] = useState(0);
   const [showCodeModeConfirm, setShowCodeModeConfirm] = useState(false);
 
@@ -363,10 +364,9 @@ export default function Editor() {
     applyingRemotePatchRef.current = false;
   }, []);
 
-  const onCollabCodeModeEntered = useCallback(() => {
-    if (!formApiRef.current) return;
-    const values = formApiRef.current.getState().values;
-    let mjml = JsonToMjml({
+  /** Shared init for entering code mode — used by both direct and collab paths */
+  const initCodeMode = useCallback((values: IEmailTemplate) => {
+    const mjml = JsonToMjml({
       data: values.content,
       mode: 'production',
       context: values.content,
@@ -374,11 +374,16 @@ export default function Editor() {
     });
     setCodeMjml(mjml);
     codeMjmlRef.current = mjml;
-    codeOriginalContentRef.current = cloneDeep(values.content);
+    codeOriginalContentRef.current = cloneDeep(values.content) as IBlockData;
     codeUserEditedRef.current = false;
     codeInitialFormatDoneRef.current = false;
     setCodeMode(true);
   }, []);
+
+  const onCollabCodeModeEntered = useCallback(() => {
+    if (!formApiRef.current) return;
+    initCodeMode(formApiRef.current.getState().values);
+  }, [initCodeMode]);
 
   const onCollabCodeModeExited = useCallback((content: string, userId: string) => {
     if (!formApiRef.current) return;
@@ -653,22 +658,9 @@ export default function Editor() {
       // Others are present — need consensus
       setShowCodeModeConfirm(true);
     } else {
-      // Alone — enter directly
-      const values = formApiRef.current.getState().values;
-      let mjml = JsonToMjml({
-        data: values.content,
-        mode: 'production',
-        context: values.content,
-        beautify: true,
-      });
-      setCodeMjml(mjml);
-      codeMjmlRef.current = mjml;
-      codeOriginalContentRef.current = cloneDeep(values.content);
-      codeUserEditedRef.current = false;
-      codeInitialFormatDoneRef.current = false;
-      setCodeMode(true);
+      initCodeMode(formApiRef.current.getState().values);
     }
-  }, [collab.roomUsers, collab.currentUser.userId]);
+  }, [collab.roomUsers, collab.currentUser.userId, initCodeMode]);
 
   const exitCodeMode = useCallback(() => {
     if (!formApiRef.current) return;
@@ -707,10 +699,8 @@ export default function Editor() {
     }
   }, [savedArticleId, dispatch]);
 
-  const codeInitialFormatDoneRef = useRef(false);
   const handleCodeMjmlChange = useCallback((mjml: string) => {
     if (!codeInitialFormatDoneRef.current) {
-      // First change is the MjmlCodeEditor formatting on mount — not a user edit
       codeInitialFormatDoneRef.current = true;
     } else {
       codeUserEditedRef.current = true;
