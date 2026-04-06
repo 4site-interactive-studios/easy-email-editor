@@ -204,12 +204,15 @@ const defaultCategories: ExtensionProps['categories'] = [
 
 /** Renders inside EmailEditorProvider to sync focus + text cursor ↔ collaboration. */
 /** Toggle spacer indicator class on shadow DOM host based on setting */
+/** Toggle spacer indicator class + color on shadow DOM host */
 function SpacerIndicatorSync() {
   useEffect(() => {
     const el = document.getElementById('VisualEditorEditMode');
     if (!el) return;
-    if (getAppSettings().showSpacerIndicator) {
+    const settings = getAppSettings();
+    if (settings.showSpacerIndicator) {
       el.classList.add('show-spacer-indicator');
+      el.style.setProperty('--spacer-indicator-color', settings.spacerIndicatorColor);
     } else {
       el.classList.remove('show-spacer-indicator');
     }

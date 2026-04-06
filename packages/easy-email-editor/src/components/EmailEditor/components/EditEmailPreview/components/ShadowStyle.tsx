@@ -50,8 +50,8 @@ export function ShadowStyle() {
                 -45deg,
                 transparent,
                 transparent 4px,
-                rgba(147, 197, 253, 0.3) 4px,
-                rgba(147, 197, 253, 0.3) 8px
+                rgba(var(--spacer-indicator-color, 147, 197, 253), 0.3) 4px,
+                rgba(var(--spacer-indicator-color, 147, 197, 253), 0.3) 8px
               ) !important;
             }
 

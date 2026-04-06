@@ -2,7 +2,22 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Frame from '@demo/components/Frame';
 import { Key, Trash2, Check, ExternalLink, Settings2 } from 'lucide-react';
 import { api } from '@demo/utils/api';
-import { useAppSettings } from '@demo/hooks/useAppSettings';
+import { useAppSettings, DEFAULT_SPACER_COLOR } from '@demo/hooks/useAppSettings';
+
+/** Convert "r, g, b" string to "#rrggbb" hex */
+function rgbToHex(rgb: string): string {
+  const parts = rgb.split(',').map(s => parseInt(s.trim(), 10));
+  if (parts.length !== 3 || parts.some(isNaN)) return '#93c5fd';
+  return '#' + parts.map(n => n.toString(16).padStart(2, '0')).join('');
+}
+
+/** Convert "#rrggbb" hex to "r, g, b" string */
+function hexToRgb(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `${r}, ${g}, ${b}`;
+}
 
 export default function Settings() {
   const [apiKey, setApiKey] = useState('');
@@ -209,14 +224,33 @@ export default function Settings() {
                 <div className='w-9 h-5 bg-gray-300 rounded-full peer-checked:bg-blue-600 transition-colors' />
                 <div className='absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4' />
               </div>
-              <div>
+              <div className='flex-1'>
                 <span className='text-sm font-medium text-gray-700 group-hover:text-gray-900'>
                   Highlight spacers
                 </span>
                 <span className='block text-xs text-gray-400'>
-                  Show diagonal blue stripes on spacer blocks in the visual editor
+                  Show diagonal stripes on spacer blocks in the visual editor
                 </span>
               </div>
+              {appSettings.showSpacerIndicator && (
+                <div className='flex items-center gap-2 ml-2'>
+                  <input
+                    type='color'
+                    value={rgbToHex(appSettings.spacerIndicatorColor)}
+                    onChange={e => updateAppSettings({ spacerIndicatorColor: hexToRgb(e.target.value) })}
+                    className='w-7 h-7 rounded border border-gray-300 cursor-pointer p-0'
+                    title='Spacer highlight color'
+                  />
+                  {appSettings.spacerIndicatorColor !== DEFAULT_SPACER_COLOR && (
+                    <button
+                      className='text-xs text-blue-600 hover:text-blue-800 whitespace-nowrap'
+                      onClick={e => { e.preventDefault(); updateAppSettings({ spacerIndicatorColor: DEFAULT_SPACER_COLOR }); }}
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              )}
             </label>
           </div>
         </div>
