@@ -30,7 +30,7 @@ import { getUserIdentity } from '@demo/utils/user-identity';
 import { RemoteCursors } from '@demo/components/RemoteCursors';
 import { BlockInsertButtons } from '@demo/components/BlockInsertButtons';
 import { BlockMjmlEditor } from '@demo/components/BlockMjmlEditor';
-import { getAppSettings } from '@demo/hooks/useAppSettings';
+import { getAppSettings, useAppSettings } from '@demo/hooks/useAppSettings';
 
 import {
   EmailEditor,
@@ -290,6 +290,7 @@ function CollaborationSync({ collab }: { collab: ReturnType<typeof useCollaborat
 export default function Editor() {
   const dispatch = useDispatch();
   const history = useHistory();
+  const [appSettings, updateAppSettings] = useAppSettings();
   const templateData = useAppSelector('template');
   const { width } = useWindowSize();
   const compact = width > 1280;
@@ -928,7 +929,7 @@ export default function Editor() {
             }
 
             // ── Autosave to database (2s debounce) — only when enabled ──
-            if (getAppSettings().autoSaveEnabled && savedArticleId && contentJson !== lastSavedContentRef.current && contentJson !== lastScheduledContentRef.current) {
+            if (appSettings.autoSaveEnabled && savedArticleId && contentJson !== lastSavedContentRef.current && contentJson !== lastScheduledContentRef.current) {
               lastScheduledContentRef.current = contentJson;
               if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
               autosaveTimerRef.current = setTimeout(() => {
@@ -1028,7 +1029,7 @@ export default function Editor() {
                           {saveError ? (
                             <><AlertTriangle size={14} /> Save failed</>
                           ) : hasUnsavedChanges ? (
-                            !getAppSettings().autoSaveEnabled ? (
+                            !appSettings.autoSaveEnabled ? (
                               <button
                                 className='px-3 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors'
                                 onClick={handleSave}
@@ -1051,19 +1052,14 @@ export default function Editor() {
 
                     {/* Auto-save toggle */}
                     {savedArticleId && (
-                      <label className='inline-flex items-center gap-1.5 cursor-pointer select-none' title={getAppSettings().autoSaveEnabled ? 'Auto-save is on' : 'Auto-save is off'}>
+                      <label className='inline-flex items-center gap-1.5 cursor-pointer select-none' title={appSettings.autoSaveEnabled ? 'Auto-save is on' : 'Auto-save is off'}>
                         <div className='relative'>
                           <input
                             type='checkbox'
                             className='sr-only peer'
-                            checked={getAppSettings().autoSaveEnabled}
+                            checked={appSettings.autoSaveEnabled}
                             onChange={e => {
-                              const { useAppSettings: _, ...rest } = getAppSettings() as any;
-                              const newSettings = { ...getAppSettings(), autoSaveEnabled: e.target.checked };
-                              localStorage.setItem('easy-email-app-settings', JSON.stringify(newSettings));
-                              // Force re-render by updating editor key
-                              setEditorKey(k => k);
-                              // Trigger immediate save if enabling and there are unsaved changes
+                              updateAppSettings({ autoSaveEnabled: e.target.checked });
                               if (e.target.checked && contentJson !== lastSavedContentRef.current && formApiRef.current) {
                                 autosave(savedArticleId, formApiRef.current.getState().values);
                               }
