@@ -16,3 +16,4 @@ export { getContextMergeTags } from './utils/getContextMergeTags';
 export { getIconNameByBlockType, setIconsMap } from './utils/getIconNameByBlockType';
 export { getBlockTitle } from './utils/getBlockTitle';
 export { MjmlToJson } from './utils/MjmlToJson';
+export { parseXMLtoBlockFidelity } from './utils/parseXMLtoBlock';

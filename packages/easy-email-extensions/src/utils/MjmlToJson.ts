@@ -188,19 +188,15 @@ export function MjmlToJson(data: MjmlBlockItem | string): IPage {
           payload.children = item.children.map(transform);
         }
 
-        // Construct block data directly from the payload — DON'T call
-        // block.create(payload) which would merge editor defaults
-        const blockData: IBlockData = {
-          type: block.type,
-          attributes: { ...payload.attributes },
-          data: { value: { ...payload.data.value } },
-          children: payload.children || [],
-        };
+        // Use block.create(payload) to merge editor defaults — this is
+        // correct for Code→Visual round-trips where the editor needs
+        // defaults to render properly. The DOM-based import parser
+        // (parseXMLtoBlockFidelity) bypasses this for source fidelity.
+        const blockData = block.create(payload);
 
-        // Don't normalize padding — preserve the source values exactly.
-        // The old formatPadding expanded "32px" → "32px 32px 32px 32px"
-        // and merged padding-bottom into padding, both of which changed
-        // the source MJML semantics.
+        // Normalize padding for the JSON AST path (Code→Visual round-trip)
+        formatPadding(blockData.attributes, 'padding');
+        formatPadding(blockData.attributes, 'inner-padding');
         return blockData;
     }
   };
@@ -237,5 +233,33 @@ export function getMetaDataFromMjml(data?: IChildrenItem): {
     }, {});
 
   return pickBy(mjmlHtmlAttributes, identity);
+}
+
+function formatPadding(
+  attributes: IBlockData['attributes'],
+  attributeName: 'padding' | 'inner-padding'
+) {
+  const ele = document.createElement('div');
+  Object.keys(attributes).forEach((key: string) => {
+    if (new RegExp(`^${attributeName}`).test(key)) {
+      const formatKey = new RegExp(`^${attributeName}(.*)`).exec(key)?.[0];
+      if (formatKey) {
+        ele.style[formatKey as any] = attributes[key];
+        delete attributes[key];
+      }
+    }
+  });
+  const newPadding = [
+    ele.style.paddingTop,
+    ele.style.paddingRight,
+    ele.style.paddingBottom,
+    ele.style.paddingLeft,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  if (newPadding) {
+    attributes[attributeName] = newPadding;
+  }
 }
 

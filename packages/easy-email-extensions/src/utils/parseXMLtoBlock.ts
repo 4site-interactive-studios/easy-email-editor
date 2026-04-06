@@ -1,5 +1,7 @@
+import mjml from 'mjml-browser';
 import { IBlockData, BasicType, BlockManager } from 'easy-email-core';
 import { IPage } from 'easy-email-core';
+import { MjmlToJson } from './MjmlToJson';
 
 // Attributes illegal on <mj-raw>
 const RAW_ILLEGAL_ATTRS = new Set([
@@ -83,14 +85,38 @@ function preprocessMjml(text: string): string {
  * - Element ordering
  */
 export function parseXMLtoBlock(text: string): IPage {
+  const dom = domParser.parseFromString(text, 'text/xml');
+  const root = dom.firstChild as Element;
+
+  if (!(dom.firstChild instanceof Element)) {
+    throw new Error('Invalid content');
+  }
+
+  // For full <mjml> documents, use mjml-browser's parser which handles
+  // entities, comments in mj-attributes, and all edge cases correctly.
+  // This ensures Code→Visual round-trips preserve styling.
+  if (root.tagName === 'mjml') {
+    const { json } = mjml(text, { validationLevel: 'soft' });
+    return MjmlToJson(json);
+  }
+
+  // For partial MJML (single element), use the DOM-based parser
+  return transformElement(root) as IPage;
+}
+
+/**
+ * Parse MJML with the DOM-based parser for maximum source fidelity.
+ * Used by the "Import MJML" flow on the home page where preserving
+ * the user's exact attributes matters more than merging editor defaults.
+ */
+export function parseXMLtoBlockFidelity(text: string): IPage {
   // First try XML parsing with entity preprocessing
   const preprocessed = preprocessMjml(text);
   let dom = domParser.parseFromString(preprocessed, 'text/xml');
   let root = dom.documentElement;
 
-  // If XML parsing fails, try parsing as HTML and extracting the mjml element
+  // If XML parsing fails, try parsing as HTML
   if (!root || root.querySelector('parsererror')) {
-    // HTML parser is more lenient — handles unescaped &, <br>, etc.
     dom = domParser.parseFromString(text, 'text/html');
     root = dom.querySelector('mjml') as Element;
     if (!root) {
@@ -102,7 +128,6 @@ export function parseXMLtoBlock(text: string): IPage {
     return parseMjmlDocument(root);
   }
 
-  // For partial MJML (single element), parse as a block
   return transformElement(root) as IPage;
 }
 

@@ -9,7 +9,7 @@ import { history } from '@demo/utils/history';
 import { generateThumbnail } from '@demo/utils/generateThumbnail';
 import { IBlockData } from 'easy-email-core';
 import { nowUnix } from '@demo/utils/time';
-import { MjmlToJson } from 'easy-email-extensions';
+import { MjmlToJson, parseXMLtoBlockFidelity } from 'easy-email-extensions';
 import { api } from '@demo/utils/api';
 import { IArticle } from '@demo/services/article';
 import { getAppSettings } from '@demo/hooks/useAppSettings';
@@ -98,7 +98,7 @@ export default function Home() {
 
     try {
       // Parse MJML into block tree
-      const content = MjmlToJson(source);
+      const content = parseXMLtoBlockFidelity(source);
 
       // Save to localStorage
       const id = api.generateId();
