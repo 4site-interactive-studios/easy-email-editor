@@ -111,36 +111,42 @@ export function FocusTooltip() {
             </div>
           )}
 
-          {/* Spacer resize handle — bottom edge */}
+          {/* Spacer resize handles — full-width top and bottom edges */}
           {isSpacer && (
-            <div
-              onMouseDown={handleResizeStart}
-              style={{
-                position: 'absolute',
-                zIndex: 9999,
-                bottom: 0,
-                left: '50%',
-                transform: 'translate(-50%, 50%)',
-                width: 40,
-                height: 8,
-                backgroundColor: 'var(--selected-color)',
-                borderRadius: 4,
-                cursor: 'ns-resize',
-                pointerEvents: 'auto',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-              title='Drag to resize spacer'
-            >
-              <div style={{
-                width: 16,
-                height: 2,
-                backgroundColor: 'rgba(255,255,255,0.7)',
-                borderRadius: 1,
-              }} />
-            </div>
+            <>
+              <div
+                onMouseDown={handleResizeStart}
+                style={{
+                  position: 'absolute',
+                  zIndex: 9999,
+                  bottom: -3,
+                  left: 0,
+                  width: '100%',
+                  height: 6,
+                  cursor: 'ns-resize',
+                  pointerEvents: 'auto',
+                  background: 'var(--selected-color)',
+                  opacity: 0.5,
+                }}
+                title='Drag to resize spacer'
+              />
+              <div
+                onMouseDown={handleResizeStart}
+                style={{
+                  position: 'absolute',
+                  zIndex: 9999,
+                  top: -3,
+                  left: 0,
+                  width: '100%',
+                  height: 6,
+                  cursor: 'ns-resize',
+                  pointerEvents: 'auto',
+                  background: 'var(--selected-color)',
+                  opacity: 0.5,
+                }}
+                title='Drag to resize spacer'
+              />
+            </>
           )}
 
           {/* outline */}
