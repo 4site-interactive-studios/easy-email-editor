@@ -142,7 +142,6 @@ export function BlockMjmlEditor() {
         return;
       }
       setMjmlValid(true);
-      userEditingRef.current = false;
       setValueByIdx(focusIdx, parseValue);
     } catch (error) {
       setMjmlValid(false);
