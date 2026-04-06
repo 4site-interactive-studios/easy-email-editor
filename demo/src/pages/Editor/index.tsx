@@ -19,7 +19,7 @@ import { getTemplate } from '@demo/config/getTemplate';
 import { generateThumbnail } from '@demo/utils/generateThumbnail';
 import { api, Revision } from '@demo/utils/api';
 import { MjmlCodeEditor } from '@demo/components/MjmlCodeEditor';
-import { MjmlToJson } from 'easy-email-extensions';
+import { MjmlToJson, parseXMLtoBlockFidelity } from 'easy-email-extensions';
 import { IArticle } from '@demo/services/article';
 import { FormApi } from 'final-form';
 import { nowUnix, timeAgo } from '@demo/utils/time';
@@ -333,6 +333,8 @@ export default function Editor() {
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const [codeMjml, setCodeMjml] = useState('');
   const codeMjmlRef = useRef('');
+  const codeOriginalMjmlRef = useRef(''); // MJML at time of entering code mode
+  const codeOriginalContentRef = useRef<any>(null); // Block data at time of entering code mode
   const [editorKey, setEditorKey] = useState(0);
   const [showCodeModeConfirm, setShowCodeModeConfirm] = useState(false);
 
@@ -372,6 +374,8 @@ export default function Editor() {
     });
     setCodeMjml(mjml);
     codeMjmlRef.current = mjml;
+    codeOriginalMjmlRef.current = mjml;
+    codeOriginalContentRef.current = cloneDeep(values.content);
     setCodeMode(true);
   }, []);
 
@@ -656,10 +660,10 @@ export default function Editor() {
         context: values.content,
         beautify: true,
       });
-      // Show the raw MJML as-is in the code editor — no cleaning/stripping
-      // so the round-trip back to Visual mode preserves everything exactly
       setCodeMjml(mjml);
       codeMjmlRef.current = mjml;
+      codeOriginalMjmlRef.current = mjml;
+      codeOriginalContentRef.current = cloneDeep(values.content);
       setCodeMode(true);
     }
   }, [collab.roomUsers, collab.currentUser.userId]);
@@ -668,7 +672,15 @@ export default function Editor() {
     if (!formApiRef.current) return;
     const currentMjml = codeMjmlRef.current;
     try {
-      const parsed = MjmlToJson(currentMjml);
+      // If the user didn't change anything, restore the original block data
+      // exactly — no parsing needed, no defaults injected
+      let parsed;
+      if (currentMjml === codeOriginalMjmlRef.current && codeOriginalContentRef.current) {
+        parsed = codeOriginalContentRef.current;
+      } else {
+        // User edited the MJML — use fidelity parser to avoid injecting defaults
+        parsed = parseXMLtoBlockFidelity(currentMjml);
+      }
       const values = formApiRef.current.getState().values;
       const newTemplate: IEmailTemplate = {
         ...values,
