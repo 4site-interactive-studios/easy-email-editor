@@ -10,7 +10,13 @@ const RAW_ILLEGAL_ATTRS = new Set([
   'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
 ]);
 
-export function MjmlToJson(data: MjmlBlockItem | string): IPage {
+/**
+ * Parse MJML JSON AST (from mjml-browser) into block data.
+ * @param skipDefaults - If true, don't merge editor defaults via block.create().
+ *   Use this for Code→Visual when the user edited MJML to avoid injecting
+ *   unwanted default attributes that override the <mj-attributes> cascade.
+ */
+export function MjmlToJson(data: MjmlBlockItem | string, skipDefaults = false): IPage {
   if (isString(data)) return parseXMLtoBlock(data);
 
   const transform = (item: IChildrenItem): IBlockData => {
@@ -105,10 +111,7 @@ export function MjmlToJson(data: MjmlBlockItem | string): IPage {
           extraHeadTags += `<mj-preview>${previewNode.content || ''}</mj-preview>\n`;
         }
 
-        // Construct Page directly — don't call Page.create() to avoid
-        // injecting editor defaults (font-family, font-size, etc.)
-        const pageData: IPage = {
-          type: BasicType.PAGE,
+        const pagePayload = {
           attributes: body.attributes || {},
           children: body.children?.map(transform) || [],
           data: {
@@ -123,7 +126,13 @@ export function MjmlToJson(data: MjmlBlockItem | string): IPage {
             },
           },
         };
-        return pageData;
+
+        if (skipDefaults) {
+          // Import fidelity: construct Page directly without defaults
+          return { type: BasicType.PAGE, ...pagePayload } as IPage;
+        }
+        // Editor round-trip: use Page.create() to merge defaults
+        return BlockManager.getBlockByType<IPage>(BasicType.PAGE)!.create(pagePayload);
 
       default:
         const tag = item.tagName.replace('mj-', '').toLowerCase();
@@ -188,15 +197,21 @@ export function MjmlToJson(data: MjmlBlockItem | string): IPage {
           payload.children = item.children.map(transform);
         }
 
-        // Use block.create(payload) to merge editor defaults — this is
-        // correct for Code→Visual round-trips where the editor needs
-        // defaults to render properly. The DOM-based import parser
-        // (parseXMLtoBlockFidelity) bypasses this for source fidelity.
-        const blockData = block.create(payload);
-
-        // Normalize padding for the JSON AST path (Code→Visual round-trip)
-        formatPadding(blockData.attributes, 'padding');
-        formatPadding(blockData.attributes, 'inner-padding');
+        let blockData: IBlockData;
+        if (skipDefaults) {
+          // Import fidelity: use only source attributes, no defaults
+          blockData = {
+            type: block.type,
+            attributes: { ...payload.attributes },
+            data: { value: { ...payload.data.value } },
+            children: payload.children || [],
+          };
+        } else {
+          // Editor round-trip: merge defaults via block.create()
+          blockData = block.create(payload);
+          formatPadding(blockData.attributes, 'padding');
+          formatPadding(blockData.attributes, 'inner-padding');
+        }
         return blockData;
     }
   };

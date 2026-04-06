@@ -105,30 +105,18 @@ export function parseXMLtoBlock(text: string): IPage {
 }
 
 /**
- * Parse MJML with the DOM-based parser for maximum source fidelity.
- * Used by the "Import MJML" flow on the home page where preserving
- * the user's exact attributes matters more than merging editor defaults.
+ * Parse MJML without merging editor defaults.
+ * Uses mjml-browser's parser (which handles entities, comments, etc.
+ * correctly) but passes skipDefaults=true to MjmlToJson so block.create()
+ * is NOT called — preserving source attributes without injecting defaults.
+ *
+ * Used by:
+ * - "Import MJML" on the home page
+ * - Code→Visual when user edited the MJML
  */
 export function parseXMLtoBlockFidelity(text: string): IPage {
-  // First try XML parsing with entity preprocessing
-  const preprocessed = preprocessMjml(text);
-  let dom = domParser.parseFromString(preprocessed, 'text/xml');
-  let root = dom.documentElement;
-
-  // If XML parsing fails, try parsing as HTML
-  if (!root || root.querySelector('parsererror')) {
-    dom = domParser.parseFromString(text, 'text/html');
-    root = dom.querySelector('mjml') as Element;
-    if (!root) {
-      throw new Error('Invalid MJML: could not parse document');
-    }
-  }
-
-  if (root.tagName === 'mjml' || root.tagName.toLowerCase() === 'mjml') {
-    return parseMjmlDocument(root);
-  }
-
-  return transformElement(root) as IPage;
+  const { json } = mjml(text, { validationLevel: 'soft' });
+  return MjmlToJson(json, true);
 }
 
 /**
