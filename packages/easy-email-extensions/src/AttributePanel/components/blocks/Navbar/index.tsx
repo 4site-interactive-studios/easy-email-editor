@@ -24,7 +24,7 @@ export function Navbar() {
   const { focusIdx } = useFocusIdx();
   return (
     <AttributesPanelWrapper style={{ padding: 0 }}>
-      <CollapseWrapper defaultActiveKey={['0', '1', '2']}>
+      <CollapseWrapper defaultActiveKey={['0', '1', '2', '4']}>
         <Collapse.Item
           name='0'
           header={t('Layout')}

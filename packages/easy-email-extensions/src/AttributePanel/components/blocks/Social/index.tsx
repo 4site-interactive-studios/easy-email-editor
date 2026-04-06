@@ -48,7 +48,7 @@ export function Social() {
 
   return (
     <AttributesPanelWrapper style={{ padding: 0 }}>
-      <CollapseWrapper defaultActiveKey={['0', '1', '2', '3']}>
+      <CollapseWrapper defaultActiveKey={['0', '1', '2', '3', '4']}>
         <Collapse.Item
           name='1'
           header={t('Setting')}

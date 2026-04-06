@@ -16,7 +16,7 @@ import { CollapseWrapper } from '../../attributes/CollapseWrapper';
 export function Divider() {
   return (
     <AttributesPanelWrapper>
-      <CollapseWrapper defaultActiveKey={['-1', '0', '1', '2', '3']}>
+      <CollapseWrapper defaultActiveKey={['-1', '0', '1', '2', '3', '4']}>
         <Collapse.Item name='1' header={t('Size')}>
           <Space direction='vertical'>
             <Grid.Row>
