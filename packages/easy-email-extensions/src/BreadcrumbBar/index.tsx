@@ -140,6 +140,11 @@ export function BreadcrumbBar() {
                   }}
                 >
                   {crumb.name}
+                  {siblings.length > 1 && (
+                    <span style={{ fontWeight: 400, color: '#6b7280', fontSize: 10 }}>
+                      ({siblings.length})
+                    </span>
+                  )}
                   <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M6 9l6 6 6-6" />
                   </svg>
