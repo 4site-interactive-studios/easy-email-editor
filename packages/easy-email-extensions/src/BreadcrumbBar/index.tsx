@@ -7,7 +7,7 @@ import {
   isCommentBlock,
   getCommentText,
 } from 'easy-email-core';
-import { useFocusIdx, useBlock } from 'easy-email-editor';
+import { useFocusIdx, useBlock, scrollBlockEleIntoView } from 'easy-email-editor';
 import { get } from 'lodash';
 
 function getBlockDisplayName(block: any): string {
@@ -174,7 +174,7 @@ export function BreadcrumbBar() {
                     {siblings.map((sib) => (
                       <button
                         key={sib.idx}
-                        onClick={() => { setFocusIdx(sib.idx); setShowSiblings(false); }}
+                        onClick={() => { setFocusIdx(sib.idx); scrollBlockEleIntoView({ idx: sib.idx }); setShowSiblings(false); }}
                         style={{
                           width: '100%',
                           display: 'flex',
@@ -209,7 +209,7 @@ export function BreadcrumbBar() {
               </div>
             ) : (
               <button
-                onClick={() => setFocusIdx(crumb.idx)}
+                onClick={() => { setFocusIdx(crumb.idx); scrollBlockEleIntoView({ idx: crumb.idx }); }}
                 style={{
                   background: 'none',
                   border: 'none',

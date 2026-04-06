@@ -15,6 +15,7 @@ import {
   useFocusIdx,
   useEditorContext,
   useEditorProps,
+  scrollBlockEleIntoView,
 } from 'easy-email-editor';
 import { MjmlToJson } from 'easy-email-extensions';
 import { cloneDeep, get } from 'lodash';
@@ -146,6 +147,7 @@ export function BlockMjmlEditor() {
         applyMjml(mjmlText);
       }
       setFocusIdx(parentIdx);
+      scrollBlockEleIntoView({ idx: parentIdx });
     }
   }, [parentIdx, setFocusIdx, applyMjml, mjmlText]);
 
@@ -157,6 +159,7 @@ export function BlockMjmlEditor() {
       applyMjml(mjmlText);
     }
     setFocusIdx(idx);
+    scrollBlockEleIntoView({ idx });
   }, [focusIdx, setFocusIdx, applyMjml, mjmlText]);
 
   const blockType = focusBlock?.type || '';
