@@ -1,0 +1,172 @@
+<mjml lang="en">
+	<mj-head>
+		<mj-title>Test Email Template</mj-title>
+		<mj-preview>Preview text for testing</mj-preview>
+		<mj-breakpoint width="600px"></mj-breakpoint>
+
+		<mj-attributes>
+			<!-- Global defaults -->
+			<mj-all font-family="'Helvetica', 'Arial', sans-serif"></mj-all>
+			<mj-section border="none" background-size="cover" background-repeat="no-repeat" background-position="center center"></mj-section>
+			<mj-wrapper border="none"></mj-wrapper>
+			<mj-column border="none" vertical-align="middle"></mj-column>
+			<mj-text padding="0px" color="#333333"></mj-text>
+			<mj-image padding="0" height="auto" align="center"></mj-image>
+			<mj-spacer padding="0"></mj-spacer>
+			<mj-button
+				border-radius="4px" border="none" padding="0"
+				target="_blank" vertical-align="middle"
+				inner-padding="16px 24px"
+				font-size="14px" font-weight="700"
+				text-transform="uppercase" letter-spacing="1px"
+				line-height="100%"
+				color="#ffffff" background-color="#2563eb"
+				align="center"
+			></mj-button>
+
+			<!-- Text style classes -->
+			<mj-class name="heading" font-size="28px" font-weight="700" line-height="130%" padding-bottom="12px"></mj-class>
+			<mj-class name="subheading" font-size="20px" line-height="140%" padding-bottom="8px"></mj-class>
+			<mj-class name="body" font-size="16px" line-height="150%"></mj-class>
+			<mj-class name="caption" font-size="12px" line-height="160%" color="#6b7280"></mj-class>
+
+			<!-- Modifier classes -->
+			<mj-class name="white" color="#ffffff"></mj-class>
+			<mj-class name="centered" align="center"></mj-class>
+			<mj-class name="dark-bg" background-color="#1f2937"></mj-class>
+		</mj-attributes>
+
+		<mj-style>
+			body { -webkit-font-smoothing: antialiased; }
+			p { margin: 0; }
+			.link-primary { color: #2563eb; text-decoration: none; font-weight: 600; }
+			.link-inherit { color: inherit; text-decoration: none; }
+			@media only screen and (max-width: 600px) {
+				.mobile-center { text-align: center !important; }
+				.mobile-full-width { width: 100% !important; }
+			}
+		</mj-style>
+
+		<mj-raw>
+			<meta name="format-detection" content="telephone=no, date=no, address=no, email=no, url=no">
+			<meta name="color-scheme" content="light dark">
+			<!--[if gte mso 9]>
+			<style>
+				li { margin-left: -1em !important; }
+			</style>
+			<![endif]-->
+		</mj-raw>
+	</mj-head>
+
+	<mj-body background-color="#f3f4f6" width="600px">
+
+		<!-- Header with logo -->
+		<mj-section background-color="#ffffff" padding="16px 24px">
+			<mj-column width="100%">
+				<mj-image alt="Logo" src="https://via.placeholder.com/120x40?text=LOGO" width="120px" align="left"></mj-image>
+			</mj-column>
+		</mj-section>
+
+		<!-- Hero section with background image -->
+		<mj-section background-color="#1f2937" padding="48px 24px" text-align="center">
+			<mj-column width="100%">
+				<mj-text mj-class="heading white centered" padding-bottom="16px">
+					<p>Welcome to Our Newsletter</p>
+				</mj-text>
+				<mj-text mj-class="body white centered" padding-bottom="24px">
+					<p>Stay up to date with the latest news, tips, and resources delivered straight to your inbox.</p>
+				</mj-text>
+				<mj-button href="https://example.com?utm_source=email&utm_medium=newsletter&utm_campaign=test" width="200px">Get Started</mj-button>
+			</mj-column>
+		</mj-section>
+
+		<!-- Spacer -->
+		<mj-section padding="0">
+			<mj-column>
+				<mj-spacer height="24px"></mj-spacer>
+			</mj-column>
+		</mj-section>
+
+		<!-- Two-column content -->
+		<mj-section background-color="#ffffff" padding="24px">
+			<mj-column width="50%" padding="0 12px 0 0">
+				<mj-image alt="Feature image" src="https://via.placeholder.com/260x180?text=Feature+1" width="260px"></mj-image>
+				<mj-text mj-class="subheading" padding-top="12px">
+					<p>Feature One</p>
+				</mj-text>
+				<mj-text mj-class="body" padding-bottom="12px">
+					<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. <a href="https://example.com" class="link-primary">Learn more &rarr;</a></p>
+				</mj-text>
+			</mj-column>
+			<mj-column width="50%" padding="0 0 0 12px">
+				<mj-image alt="Feature image" src="https://via.placeholder.com/260x180?text=Feature+2" width="260px"></mj-image>
+				<mj-text mj-class="subheading" padding-top="12px">
+					<p>Feature Two</p>
+				</mj-text>
+				<mj-text mj-class="body" padding-bottom="12px">
+					<p>Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. <a href="https://example.com" class="link-primary">Learn more &rarr;</a></p>
+				</mj-text>
+			</mj-column>
+		</mj-section>
+
+		<!-- Divider -->
+		<mj-section background-color="#ffffff" padding="0 24px">
+			<mj-column>
+				<mj-divider border-color="#e5e7eb" border-width="1px"></mj-divider>
+			</mj-column>
+		</mj-section>
+
+		<!-- Full-width content block -->
+		<mj-section background-color="#ffffff" padding="24px">
+			<mj-column width="100%">
+				<mj-text mj-class="subheading">
+					<p>Important Update</p>
+				</mj-text>
+				<mj-text mj-class="body" padding-bottom="16px">
+					<p>We&rsquo;re excited to share that we&rsquo;ve launched new features. Here&rsquo;s what&rsquo;s new:</p>
+				</mj-text>
+				<mj-text mj-class="body" padding-bottom="8px">
+					<p>&bull; Improved dashboard with real-time analytics</p>
+					<p>&bull; New collaboration tools for teams</p>
+					<p>&bull; Enhanced security &amp; privacy controls</p>
+				</mj-text>
+				<mj-spacer height="8px"></mj-spacer>
+				<mj-button href="https://example.com/features" background-color="#059669" width="180px">See What&rsquo;s New</mj-button>
+			</mj-column>
+		</mj-section>
+
+		<!-- Card with dark background -->
+		<mj-wrapper background-color="#ffffff" padding="12px 0">
+			<mj-section mj-class="dark-bg" padding="32px 24px" text-align="center">
+				<mj-column width="100%">
+					<mj-text mj-class="heading white centered">
+						<p>Join 10,000+ Subscribers</p>
+					</mj-text>
+					<mj-text mj-class="body white centered" padding-bottom="20px">
+						<p>Get exclusive content and early access to new features.</p>
+					</mj-text>
+					<mj-button href="https://example.com/subscribe" background-color="#ffffff" color="#1f2937" width="180px">Subscribe Now</mj-button>
+				</mj-column>
+			</mj-section>
+		</mj-wrapper>
+
+		<!-- Footer -->
+		<mj-section background-color="#f9fafb" padding="24px" text-align="center">
+			<mj-column width="100%">
+				<mj-text mj-class="caption centered" padding-bottom="8px">
+					<p>You&rsquo;re receiving this because you signed up at example.com</p>
+				</mj-text>
+				<mj-text mj-class="caption centered" padding-bottom="8px">
+					<p>123 Main Street, Suite 100, Anytown, ST 12345</p>
+				</mj-text>
+				<mj-text mj-class="caption centered">
+					<p><a href="https://example.com/unsubscribe" class="link-inherit">Unsubscribe</a> | <a href="https://example.com/preferences" class="link-inherit">Manage Preferences</a> | <a href="https://example.com/privacy" class="link-inherit">Privacy Policy</a></p>
+				</mj-text>
+				<mj-text mj-class="caption centered" padding-top="12px">
+					<p>&copy; 2026 Example Corp. All rights reserved.</p>
+				</mj-text>
+			</mj-column>
+		</mj-section>
+
+	</mj-body>
+</mjml>
