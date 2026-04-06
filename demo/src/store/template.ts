@@ -47,8 +47,8 @@ export default createSliceState({
     },
     fetchDefaultTemplate: async state => {
       return {
-        subject: 'Welcome to Easy-email',
-        subTitle: 'Nice to meet you!',
+        subject: 'Untitled Email',
+        subTitle: '',
         content: BlockManager.getBlockByType(BasicType.PAGE).create({
           children: [BlockManager.getBlockByType(AdvancedType.WRAPPER).create()],
         }),

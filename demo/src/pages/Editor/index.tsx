@@ -108,7 +108,7 @@ function unwrapCommentRawBlocks(mjml: string): string {
 /**
  * Strip editor-internal metadata from MJML output so the user sees
  * clean, standard MJML. Removes:
- * - <mj-html-attributes>...</mj-html-attributes> blocks (easy-email metadata)
+ * - <mj-html-attributes>...</mj-html-attributes> blocks (editor metadata)
  * - Cleans up resulting blank lines
  */
 function stripEditorMetadata(mjml: string): string {
@@ -465,7 +465,7 @@ export default function Editor() {
         // Skip all errors originating from <mj-head> section — these are editor-generated
         // defaults (mj-attributes, mj-html-attributes, mj-style, etc.), not user content
         if (headEndLine > 0 && err.line >= headStartLine && err.line <= headEndLine) return false;
-        // mj-html-attribute(s) are used by easy-email metadata system
+        // mj-html-attribute(s) are used by editor metadata system
         if (err.tagName === 'html-attribute' || err.tagName === 'html-attributes') return false;
         // mj-meta is not standard MJML but may appear from <meta> inside mj-raw
         if (err.tagName === 'meta') return false;

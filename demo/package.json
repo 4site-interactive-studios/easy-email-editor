@@ -1,7 +1,7 @@
 {
   "name": "easy-email-demo",
   "license": "MIT",
-  "description": "Email editor demo",
+  "description": "4Site's MJML Editor",
   "version": "2.2.1",
   "author": "m-Ryan",
   "repository": {
@@ -9,7 +9,7 @@
     "url": "git@github.com:zalify/easy-email.git"
   },
   "keywords": [
-    "easy email editor demo"
+    "mjml email editor"
   ],
   "files": [
     "lib"
