@@ -109,12 +109,6 @@ export function Toolbar() {
               pointerEvents: 'auto',
             }}
           >
-            <ToolItem
-              width={12}
-              iconName='icon-back-parent'
-              onClick={handleSelectParent}
-            />
-            <ToolItem iconName='icon-copy' onClick={handleCopy} />
             {props.onAddCollection && (
               <ToolItem
                 iconName='icon-collection'
