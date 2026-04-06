@@ -33,5 +33,9 @@
   width: 8px;
 }
 :global(#BlockLayerManager .arco-tree-node-drag-icon) {
+  display: none;
+}
+/* Make the whole tree node row draggable */
+:global(#BlockLayerManager .arco-tree-node-title) {
   cursor: grab;
 }
