@@ -152,13 +152,15 @@ export function BlockLayer(props: BlockLayerProps) {
       item.id = id;
       item.parent = parent;
 
-      // Filter out comment-only raw blocks from children,
-      // attaching their text as a label on the next sibling
-      const filteredChildren: IBlockDataWithId[] = [];
+      // Build filtered children list, skipping comment-only raw blocks
+      // and attaching their text as labels on the next real sibling.
+      // Track original indices so the tree node IDs match the real block positions.
+      const originalChildren = [...item.children] as IBlockDataWithId[];
+      const filteredChildren: { child: IBlockDataWithId; originalIndex: number }[] = [];
       let pendingComment = '';
 
-      for (let i = 0; i < item.children.length; i++) {
-        const child = item.children[i] as IBlockDataWithId;
+      for (let i = 0; i < originalChildren.length; i++) {
+        const child = originalChildren[i];
         if (isCommentBlock(child)) {
           pendingComment = getCommentText(child);
         } else {
@@ -166,31 +168,15 @@ export function BlockLayer(props: BlockLayerProps) {
             child.commentLabel = pendingComment;
             pendingComment = '';
           }
-          filteredChildren.push(child);
+          filteredChildren.push({ child, originalIndex: i });
         }
       }
 
-      item.children = filteredChildren;
-
-      // Now assign IDs to the filtered children based on the ORIGINAL indices
-      // We need the real indices (not filtered) for correct focusIdx mapping
-      // So we rebuild: walk the original children to map filtered → original index
-      let originalIndex = 0;
-      for (let fi = 0; fi < item.children.length; fi++) {
-        const child = item.children[fi];
-        // Find this child's original index in pageData
-        // We need to skip comment blocks in the original array
-        const origChildren = (get(pageData, id) as IBlockData)?.children || [];
-        for (let oi = originalIndex; oi < origChildren.length; oi++) {
-          if (!isCommentBlock(origChildren[oi])) {
-            loop(child, getChildIdx(id, oi), item);
-            originalIndex = oi + 1;
-            break;
-          } else {
-            originalIndex = oi + 1;
-          }
-        }
-      }
+      // Replace children with filtered list and recurse with correct indices
+      item.children = filteredChildren.map(({ child, originalIndex }) => {
+        loop(child, getChildIdx(id, originalIndex), item);
+        return child;
+      });
     };
 
     loop(copyData, getPageIdx(), null);
