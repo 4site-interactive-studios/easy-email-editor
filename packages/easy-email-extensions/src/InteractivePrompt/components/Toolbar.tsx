@@ -85,7 +85,7 @@ export function Toolbar() {
               backgroundColor: 'var(--selected-color)',
               height: '22px',
               fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-              display: 'inline-flex',
+              display: 'none',
               padding: '1px 5px',
               boxSizing: 'border-box',
               whiteSpace: 'nowrap',
