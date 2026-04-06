@@ -126,11 +126,11 @@ export function BlockMjmlEditor() {
     }
   }, [focusIdx, setValueByIdx, values]);
 
-  // Handle code changes — debounce applying to block tree
+  // Handle code changes — short debounce for near-instant visual updates
   const handleChange = useCallback((_editor: any, _data: any, value: string) => {
     setMjmlText(value);
     if (applyTimerRef.current) clearTimeout(applyTimerRef.current);
-    applyTimerRef.current = setTimeout(() => applyMjml(value), 1500);
+    applyTimerRef.current = setTimeout(() => applyMjml(value), 300);
   }, [applyMjml]);
 
   // Apply on blur (immediate)
