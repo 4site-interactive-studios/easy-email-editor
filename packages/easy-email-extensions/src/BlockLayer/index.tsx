@@ -64,7 +64,7 @@ export function BlockLayer(props: BlockLayerProps) {
     top: number;
   } | null>(null);
 
-  const [focusOnly, setFocusOnly] = useState(true);
+  const [focusOnly, setFocusOnly] = useState(false);
   // null = no forced state; string[] = force these keys
   const [forceExpandedKeys, setForceExpandedKeys] = useState<string[] | null>(null);
 
@@ -335,8 +335,10 @@ export function BlockLayer(props: BlockLayerProps) {
 
   const expandedKeys = useMemo(() => {
     if (!focusIdx) return [];
+    // Include the focused node itself (to expand its children)
+    // plus all ancestors up to the root
+    const keys: string[] = [focusIdx];
     let currentIdx = getParentIdx(focusIdx);
-    const keys: string[] = [];
     while (currentIdx) {
       keys.push(currentIdx);
       currentIdx = getParentIdx(currentIdx);
@@ -403,7 +405,6 @@ export function BlockLayer(props: BlockLayerProps) {
         selectedKeys={selectedKeys}
         expandedKeys={expandedKeys}
         forceExpandedKeys={forceExpandedKeys}
-        defaultExpandAll
         treeData={treeData}
         renderTitle={renderTitle}
         allowDrop={blockTreeAllowDrop}
