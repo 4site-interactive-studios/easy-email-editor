@@ -978,7 +978,18 @@ export default function Editor() {
                   <div className='flex items-center gap-3'>
                     <button
                       className='p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors'
-                      onClick={() => history.push('/')}
+                      onClick={() => {
+                        const hasUnsaved = savedArticleId
+                          ? contentJson !== lastSavedContentRef.current
+                          : false;
+                        if (hasUnsaved) {
+                          if (window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
+                            history.push('/');
+                          }
+                        } else {
+                          history.push('/');
+                        }
+                      }}
                       title='Back to dashboard'
                     >
                       <Home size={18} />
