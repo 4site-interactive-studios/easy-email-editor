@@ -41,6 +41,13 @@ import 'codemirror/addon/hint/show-hint';
 import 'codemirror/addon/hint/show-hint.css';
 import 'codemirror/addon/hint/xml-hint';
 
+// Search — enables Ctrl+F/Cmd+F within the editor
+import 'codemirror/addon/search/search';
+import 'codemirror/addon/search/searchcursor';
+import 'codemirror/addon/search/match-highlighter';
+import 'codemirror/addon/dialog/dialog';
+import 'codemirror/addon/dialog/dialog.css';
+
 function getBlockDisplayName(block: any): string {
   if (!block) return '?';
   return BlockManager.getBlockByType(block.type)?.name || block.type || '?';
@@ -281,6 +288,7 @@ export function BlockMjmlEditor() {
           autoCloseBrackets: true,
           matchBrackets: true,
           foldGutter: true,
+          highlightSelectionMatches: { showToken: true, annotateScrollbar: true },
           gutters: ['CodeMirror-linenumbers', 'CodeMirror-foldgutter'],
         }}
         onBeforeChange={handleChange}

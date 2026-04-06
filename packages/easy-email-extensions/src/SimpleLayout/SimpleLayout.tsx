@@ -112,6 +112,9 @@ export const SimpleLayout: React.FC<
 
   // If block layer is enabled, start expanded; otherwise collapsed
   const [collapsed, setCollapsed] = useState(() => showBlockLayer ? false : (!defaultShowLayer || isNarrow));
+  // Manual collapse state for the layout panel (when toolbar is hidden)
+  // Starts false (expanded) — once manually collapsed, stays collapsed until manually expanded
+  const [layoutManuallyCollapsed, setLayoutManuallyCollapsed] = useState(false);
   // If toolbar is hidden but block layer is enabled, don't hide the left sider entirely
   const [leftHidden, setLeftHidden] = useState(() => {
     if (showBlockLayer) return false;
@@ -153,12 +156,17 @@ export const SimpleLayout: React.FC<
         }}
       >
         <Layout.Sider
-          style={{ paddingRight: 0, position: 'relative', display: leftHidden ? 'none' : undefined }}
+          style={{
+            paddingRight: 0,
+            position: 'relative',
+            // Hide when: toolbar hidden AND (no block layer OR layout manually collapsed)
+            display: (leftHidden || (hideToolbar && showBlockLayer && layoutManuallyCollapsed)) ? 'none' : undefined,
+          }}
           collapsed={collapsed}
           collapsible
           trigger={null}
           breakpoint='xl'
-          collapsedWidth={76}
+          collapsedWidth={hideToolbar && showBlockLayer ? 0 : 76}
           width={leftWidth}
         >
           <Card
@@ -204,6 +212,16 @@ export const SimpleLayout: React.FC<
                   title={t('Layout')}
                   style={{ border: 'none' }}
                   headerStyle={{ height: 50 }}
+                  extra={
+                    hideToolbar && showBlockLayer ? (
+                      <Button
+                        size='mini'
+                        icon={<IconLeft />}
+                        onClick={() => setLayoutManuallyCollapsed(true)}
+                        style={{ marginRight: 4 }}
+                      />
+                    ) : undefined
+                  }
                 >
                   {!collapsed && <BlockLayer renderTitle={props.renderTitle} />}
                 </Card>
@@ -214,6 +232,35 @@ export const SimpleLayout: React.FC<
         </Layout.Sider>
 
         <Layout style={{ height: containerHeight, position: 'relative' }}>
+          {/* Show expand tab when layout panel is manually collapsed */}
+          {(hideToolbar && showBlockLayer && layoutManuallyCollapsed) && (
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                zIndex: 100,
+                cursor: 'pointer',
+              }}
+              onClick={() => setLayoutManuallyCollapsed(false)}
+              title={t('Show layout panel')}
+            >
+              <div style={{
+                width: 12,
+                height: 48,
+                background: 'var(--selected-color, #1890ff)',
+                borderRadius: '0 6px 6px 0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: 0.6,
+                transition: 'opacity 0.15s',
+              }}>
+                <IconRight style={{ color: '#fff', fontSize: 10 }} />
+              </div>
+            </div>
+          )}
           {leftHidden && (
             <>
               {/* Hover zone on left edge — triggers flyout after 300ms */}

@@ -24,6 +24,13 @@ import 'codemirror/addon/fold/foldgutter';
 import 'codemirror/addon/fold/foldgutter.css';
 import 'codemirror/addon/fold/xml-fold';
 
+// Search — enables Ctrl+F/Cmd+F within the editor
+import 'codemirror/addon/search/search';
+import 'codemirror/addon/search/searchcursor';
+import 'codemirror/addon/search/match-highlighter';
+import 'codemirror/addon/dialog/dialog';
+import 'codemirror/addon/dialog/dialog.css';
+
 // ─── MJML schema for autocomplete ─────────────────────────────────────────────
 
 const mjmlSchema: Record<string, any> = {
@@ -360,6 +367,7 @@ export function MjmlCodeEditor({ mjmlString, onMjmlChange, height }: MjmlCodeEdi
               autoCloseBrackets: true,
               matchBrackets: true,
               foldGutter: true,
+              highlightSelectionMatches: { showToken: true, annotateScrollbar: true },
               gutters: ['CodeMirror-linenumbers', 'CodeMirror-foldgutter'],
               extraKeys: {
                 'Ctrl-Space': (cm: any) => {
