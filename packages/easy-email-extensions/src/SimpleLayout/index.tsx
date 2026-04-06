@@ -1,1 +1,1 @@
-export { SimpleLayout } from './SimpleLayout';
+export { SimpleLayout, resetSidebarState } from './SimpleLayout';
