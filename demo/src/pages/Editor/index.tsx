@@ -7,7 +7,7 @@ import { useLoading } from '@demo/hooks/useLoading';
 import { ConfigProvider, Message } from '@arco-design/web-react';
 import { Dialog, Transition, Menu as HMenu } from '@headlessui/react';
 import {
-  ArrowLeft, Download, Copy, ChevronDown, Wand2, Loader2,
+  Home, Download, Copy, ChevronDown, Wand2, Loader2,
   AlertTriangle, CheckCircle, X, History, RotateCcw, Check,
   Code, Eye, FileCode, StickyNote, LayoutTemplate,
 } from 'lucide-react';
@@ -947,7 +947,7 @@ export default function Editor() {
                       onClick={() => history.push('/')}
                       title='Back to dashboard'
                     >
-                      <ArrowLeft size={18} />
+                      <Home size={18} />
                     </button>
                     {isTemplateMode && (
                       <span className='inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-purple-700 bg-purple-100 border border-purple-200 rounded'>
