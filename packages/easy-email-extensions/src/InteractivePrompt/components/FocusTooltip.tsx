@@ -6,10 +6,19 @@ import { useBlock, useFocusIdx, useFocusBlockLayout } from 'easy-email-editor';
 import { Toolbar } from './Toolbar';
 
 export function FocusTooltip() {
-  const { focusBlock } = useBlock();
+  const { focusBlock, removeBlock } = useBlock();
   const { focusIdx } = useFocusIdx();
   const { focusBlockNode } = useFocusBlockLayout();
   const isPage = focusBlock?.type === BasicType.PAGE;
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    removeBlock(focusIdx);
+  };
 
   if (!focusBlockNode || !focusBlock) return null;
 
@@ -35,6 +44,43 @@ export function FocusTooltip() {
               }
             `}
           </style>
+
+          {/* Delete button on the right edge */}
+          {!isPage && (
+            <div
+              style={{
+                position: 'absolute',
+                zIndex: 9999,
+                right: -1,
+                top: '50%',
+                transform: 'translateY(-50%)',
+              }}
+              onClick={e => e.stopPropagation()}
+              onMouseDown={e => e.preventDefault()}
+            >
+              <div
+                onClick={handleDelete}
+                style={{
+                  backgroundColor: '#ef4444',
+                  color: '#ffffff',
+                  height: 24,
+                  width: 24,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  pointerEvents: 'auto',
+                  borderRadius: 4,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                }}
+                title='Delete block'
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                </svg>
+              </div>
+            </div>
+          )}
 
           {/* outline */}
           <div

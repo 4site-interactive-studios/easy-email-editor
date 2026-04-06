@@ -121,7 +121,6 @@ export function Toolbar() {
                 onClick={handleAddToCollection}
               />
             )}
-            <ToolItem iconName='icon-delete' onClick={handleDelete} />
           </div>
         </div>
       </div>
