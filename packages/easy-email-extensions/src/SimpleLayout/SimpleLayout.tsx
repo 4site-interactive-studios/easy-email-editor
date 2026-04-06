@@ -5,6 +5,7 @@ import { useWindowSize } from 'react-use';
 import { SourceCodePanel } from '../SourceCodePanel';
 import { BlockMjmlPanel } from '../BlockMjmlPanel';
 import { AttributePanel } from '../AttributePanel';
+import { BreadcrumbBar } from '../BreadcrumbBar';
 import { BlockLayer, BlockLayerProps } from '../BlockLayer';
 import { InteractivePrompt } from '../InteractivePrompt';
 import styles from './index.module.scss';
@@ -360,6 +361,7 @@ export const SimpleLayout: React.FC<
                   </div>
                 }
               >
+                <BreadcrumbBar />
                 <AttributePanel />
               </Tabs.TabPane>
               <Tabs.TabPane
