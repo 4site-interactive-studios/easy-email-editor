@@ -1082,19 +1082,17 @@ export default function Editor() {
                       </label>
                     )}
 
-                    {/* Validation */}
-                    <button
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border transition-colors ${
-                        hasErrors
-                          ? 'text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100'
-                          : 'text-green-700 bg-green-50 border-green-200 hover:bg-green-100'
-                      }`}
-                      onClick={() => setShowValidation(true)}
-                      title='MJML validation report'
-                    >
-                      {hasErrors ? <AlertTriangle size={14} /> : <CheckCircle size={14} />}
-                      {hasErrors ? `${errorCount} issue${errorCount > 1 ? 's' : ''}` : 'Valid'}
-                    </button>
+                    {/* Validation — only show when there are errors */}
+                    {hasErrors && (
+                      <button
+                        className='inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border transition-colors text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100'
+                        onClick={() => setShowValidation(true)}
+                        title='MJML validation report'
+                      >
+                        <AlertTriangle size={14} />
+                        {errorCount} issue{errorCount > 1 ? 's' : ''}
+                      </button>
+                    )}
 
                     {/* History */}
                     {savedArticleId && (
