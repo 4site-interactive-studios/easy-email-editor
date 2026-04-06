@@ -1,14 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-import { getNodeTypeFromClassName, BlockManager } from 'easy-email-core';
+import { getNodeTypeFromClassName, BlockManager, getParentIdx, getIndexByIdx, getPrecedingComment } from 'easy-email-core';
 import { createPortal } from 'react-dom';
-import { getEditorRoot, useEditorContext, useFocusIdx, useHoverIdx, useLazyState } from 'easy-email-editor';
+import { getEditorRoot, useBlock, useEditorContext, useFocusIdx, useHoverIdx, useLazyState } from 'easy-email-editor';
 import { awaitForElement } from '@extensions/utils/awaitForElement';
+import { get } from 'lodash';
 
 export function HoverTooltip() {
   const { hoverIdx, direction, isDragging } = useHoverIdx();
   const lazyHoverIdx = useLazyState(hoverIdx, 60);
   const { focusIdx } = useFocusIdx();
+  const { values } = useBlock();
   const [isTop, setIsTop] = useState(false);
   const { initialized } = useEditorContext();
 
@@ -50,6 +52,16 @@ export function HoverTooltip() {
       : null;
   }, [blockNode]);
 
+  // Get preceding comment for the hovered block
+  const precedingComment = useMemo(() => {
+    if (!lazyHoverIdx) return '';
+    const parentIdx = getParentIdx(lazyHoverIdx);
+    if (!parentIdx) return '';
+    const parent = get(values, parentIdx);
+    const childIndex = getIndexByIdx(lazyHoverIdx);
+    return getPrecedingComment(parent, childIndex);
+  }, [lazyHoverIdx, values]);
+
   if (focusIdx === hoverIdx && !isDragging) return null;
   if (!block || !blockNode) return null;
 
@@ -72,6 +84,7 @@ export function HoverTooltip() {
             type={isDragging ? 'drag' : 'hover'}
             lineWidth={1}
             title={block.name}
+            subtitle={precedingComment}
             direction={isTop && direction === 'top' ? 'noEnoughTop' : direction}
             isDragging={isDragging}
           />
@@ -84,6 +97,7 @@ export function HoverTooltip() {
 
 interface TipNodeProps {
   title: string;
+  subtitle?: string;
   direction?: string;
   isDragging?: boolean;
   lineWidth: number;
@@ -91,7 +105,7 @@ interface TipNodeProps {
 }
 
 function TipNode(props: TipNodeProps) {
-  const { direction, title, lineWidth, type } = props;
+  const { direction, title, subtitle, lineWidth, type } = props;
   const dragTitle = useMemo(() => {
     if (direction === 'top' || direction === 'noEnoughTop') {
       return `${t('Insert before')} ${title}`;
@@ -169,6 +183,16 @@ function TipNode(props: TipNodeProps) {
               }}
             >
               {title}
+              {subtitle && (
+                <span style={{
+                  fontSize: 10,
+                  opacity: 0.8,
+                  marginLeft: 4,
+                  fontStyle: 'italic',
+                }}>
+                  {subtitle}
+                </span>
+              )}
             </div>
           </div>
         )}

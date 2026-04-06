@@ -1,12 +1,13 @@
 import React from 'react';
-import { BasicType, getParentIdx, getSiblingIdx } from 'easy-email-core';
+import { BasicType, getParentIdx, getSiblingIdx, isCommentBlock } from 'easy-email-core';
 import { useBlock, useFocusIdx, useEditorProps, isTextBlock } from 'easy-email-editor';
 import { classnames } from '@extensions/utils/classnames';
 import { useAddToCollection } from '@extensions/hooks/useAddToCollection';
 import { getBlockTitle } from '@extensions/utils/getBlockTitle';
+import { get } from 'lodash';
 
 export function Toolbar() {
-  const { moveBlock, copyBlock, removeBlock, focusBlock } = useBlock();
+  const { moveBlock, copyBlock, removeBlock, focusBlock, values } = useBlock();
   const { focusIdx, setFocusIdx } = useFocusIdx();
   const { modal, setModalVisible } = useAddToCollection();
   const props = useEditorProps();
@@ -15,11 +16,17 @@ export function Toolbar() {
   const isText = isTextBlock(focusBlock?.type);
 
   const handleMoveUp = () => {
-    moveBlock(focusIdx, getSiblingIdx(focusIdx, -1));
+    let offset = -1;
+    const target = get(values, getSiblingIdx(focusIdx, offset));
+    if (target && isCommentBlock(target)) offset = -2;
+    moveBlock(focusIdx, getSiblingIdx(focusIdx, offset));
   };
 
   const handleMoveDown = () => {
-    moveBlock(focusIdx, getSiblingIdx(focusIdx, 1));
+    let offset = 1;
+    const target = get(values, getSiblingIdx(focusIdx, offset));
+    if (target && isCommentBlock(target)) offset = 2;
+    moveBlock(focusIdx, getSiblingIdx(focusIdx, offset));
   };
 
   const handleAddToCollection = () => {

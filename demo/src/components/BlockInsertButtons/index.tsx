@@ -1,10 +1,25 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Type, Image, Square, Minus, ArrowDownUp, Columns, LayoutTemplate, ChevronRight, ChevronUp, ChevronDown, CornerLeftUp, CornerRightDown, Table2, ListCollapse, Navigation, Share2, Code, Box } from 'lucide-react';
-import { BlockManager, BasicType, getSiblingIdx, getParentIdx } from 'easy-email-core';
+import { BlockManager, BasicType, getSiblingIdx, getParentIdx, isCommentBlock } from 'easy-email-core';
 import { useBlock, useFocusIdx, getBlockNodeByIdx } from 'easy-email-editor';
 import { getAppSettings } from '@demo/hooks/useAppSettings';
 import { get } from 'lodash';
+
+/**
+ * Get the sibling index that skips over comment-only raw blocks.
+ * If the immediate sibling is a comment, jump one more position.
+ */
+function getSkipCommentSiblingIdx(focusIdx: string, direction: -1 | 1, values: any): string {
+  let offset = direction;
+  const targetIdx = getSiblingIdx(focusIdx, offset);
+  const targetBlock = get(values, targetIdx);
+  // If target is a comment block, skip one more
+  if (targetBlock && isCommentBlock(targetBlock)) {
+    offset += direction;
+  }
+  return getSiblingIdx(focusIdx, offset);
+}
 
 // ── Block icon mapping ────────────────────────────────────────────────────────
 
@@ -145,13 +160,13 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
 
   const handleMoveUp = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    moveBlock(focusIdx, getSiblingIdx(focusIdx, -1));
-  }, [focusIdx, moveBlock]);
+    moveBlock(focusIdx, getSkipCommentSiblingIdx(focusIdx, -1, values));
+  }, [focusIdx, moveBlock, values]);
 
   const handleMoveDown = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    moveBlock(focusIdx, getSiblingIdx(focusIdx, 1));
-  }, [focusIdx, moveBlock]);
+    moveBlock(focusIdx, getSkipCommentSiblingIdx(focusIdx, 1, values));
+  }, [focusIdx, moveBlock, values]);
 
   const handleMoveUpAndOut = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();

@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { IconFont, TextStyle, scrollBlockEleIntoView, useBlock, useEditorProps } from 'easy-email-editor';
-import { getIndexByIdx, getSiblingIdx } from 'easy-email-core';
+import { getIndexByIdx, getSiblingIdx, isCommentBlock } from 'easy-email-core';
+import { get } from 'lodash';
 import styles from './index.module.scss';
 import { IBlockDataWithId } from '../../../BlockLayer';
 import { useAddToCollection } from '@extensions/hooks/useAddToCollection';
@@ -26,21 +27,26 @@ export function ContextMenu({
   const idx = blockData.id;
   const { modal, modalVisible, setModalVisible } = useAddToCollection();
   const props = useEditorProps();
+  const { values } = useBlock();
   const ref = useRef<HTMLDivElement>(null);
 
   const handleMoveUp = () => {
-    moveBlock(idx, getSiblingIdx(idx, -1));
-    scrollBlockEleIntoView({
-      idx: getSiblingIdx(idx, -1),
-    });
+    let offset = -1;
+    const target = get(values, getSiblingIdx(idx, offset));
+    if (target && isCommentBlock(target)) offset = -2;
+    const destIdx = getSiblingIdx(idx, offset);
+    moveBlock(idx, destIdx);
+    scrollBlockEleIntoView({ idx: destIdx });
     onClose();
   };
 
   const handleMoveDown = () => {
-    moveBlock(idx, getSiblingIdx(idx, 1));
-    scrollBlockEleIntoView({
-      idx: getSiblingIdx(idx, 1),
-    });
+    let offset = 1;
+    const target = get(values, getSiblingIdx(idx, offset));
+    if (target && isCommentBlock(target)) offset = 2;
+    const destIdx = getSiblingIdx(idx, offset);
+    moveBlock(idx, destIdx);
+    scrollBlockEleIntoView({ idx: destIdx });
     onClose();
   };
 

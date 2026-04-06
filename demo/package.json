@@ -49,6 +49,7 @@
     "@arco-themes/react-easy-email-theme": "^0.0.3",
     "@arco-themes/react-easy-email-theme-green": "^0.0.1",
     "@arco-themes/react-easy-email-theme-purple": "^0.0.3",
+    "@floating-ui/react": "^0.27.19",
     "@headlessui/react": "^1.7.19",
     "@reduxjs/toolkit": "^1.6.2",
     "@sendgrid/mail": "^7.7.0",

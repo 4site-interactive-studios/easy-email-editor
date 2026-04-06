@@ -19,6 +19,8 @@ import {
   getPageIdx,
   getParentIdx,
   IBlockData,
+  isCommentBlock,
+  getCommentText,
 } from 'easy-email-core';
 import styles from './index.module.scss';
 import { cloneDeep, get, isString, isEqual } from 'lodash';
@@ -75,13 +77,46 @@ export function BlockLayer(props: BlockLayerProps) {
     [setValueByIdx, valueRef],
   );
 
+  /**
+   * Get the preceding comment text for a block (if its previous sibling
+   * is a comment-only mj-raw block).
+   */
+  const getPrecedingCommentForBlock = useCallback((data: IBlockDataWithId): string => {
+    if (!data.parent) return '';
+    const siblings = data.parent.children;
+    const idx = siblings.indexOf(data);
+    if (idx > 0) {
+      const prev = siblings[idx - 1];
+      if (isCommentBlock(prev)) {
+        return getCommentText(prev);
+      }
+    }
+    return '';
+  }, []);
+
   const renderTitle = useCallback(
     (data: IBlockDataWithId) => {
       const isPage = data.type === BasicType.PAGE;
-      const title = propsRenderTitle ? propsRenderTitle(data) : getBlockTitle(data);
+      const isComment = isCommentBlock(data);
+      const commentText = isComment ? getCommentText(data) : '';
+      const precedingComment = !isComment ? getPrecedingCommentForBlock(data) : '';
+
+      const title = isComment
+        ? 'Code Comment'
+        : propsRenderTitle
+          ? propsRenderTitle(data)
+          : getBlockTitle(data);
+
+      const fullTooltip = isComment
+        ? commentText
+        : precedingComment
+          ? `${isString(title) ? title : ''} — ${precedingComment}`
+          : (isString(title) ? title : '');
+
       return (
         <div
           data-tree-idx={data.id}
+          data-tooltip={fullTooltip || undefined}
           className={classnames(
             styles.title,
             !isPage && getNodeIdxClassName(data.id),
@@ -93,31 +128,53 @@ export function BlockLayer(props: BlockLayerProps) {
             size='mini'
           >
             <IconFont
-              iconName={getIconNameByBlockType(data.type)}
-              style={{ fontSize: 12, color: '#999' }}
+              iconName={isComment ? 'icon-source-code' : getIconNameByBlockType(data.type)}
+              style={{
+                fontSize: 12,
+                color: isComment ? '#9ca3af' : '#999',
+              }}
             />
             <div
-              title={isString(title) ? title : ''}
               style={{
                 overflow: 'hidden',
                 whiteSpace: 'nowrap',
-                width: '5em',
+                width: precedingComment ? '8em' : '5em',
                 textOverflow: 'ellipsis',
               }}
             >
-              <TextStyle size='smallest'>{title}</TextStyle>
+              {isComment ? (
+                <span style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>
+                  {commentText || 'Code Comment'}
+                </span>
+              ) : (
+                <>
+                  <TextStyle size='smallest'>{title}</TextStyle>
+                  {precedingComment && (
+                    <span style={{
+                      fontSize: 10,
+                      color: '#9ca3af',
+                      fontStyle: 'italic',
+                      marginLeft: 4,
+                    }}>
+                      {precedingComment}
+                    </span>
+                  )}
+                </>
+              )}
             </div>
           </Space>
-          <div className={styles.eyeIcon}>
-            <EyeIcon
-              blockData={data}
-              onToggleVisible={onToggleVisible}
-            />
-          </div>
+          {!isComment && (
+            <div className={styles.eyeIcon}>
+              <EyeIcon
+                blockData={data}
+                onToggleVisible={onToggleVisible}
+              />
+            </div>
+          )}
         </div>
       );
     },
-    [onToggleVisible, propsRenderTitle],
+    [onToggleVisible, propsRenderTitle, getPrecedingCommentForBlock],
   );
 
   const fullTreeData = useMemo(() => {
@@ -171,12 +228,16 @@ export function BlockLayer(props: BlockLayerProps) {
 
   const onSelect = useCallback(
     (selectedId: string) => {
+      // Don't allow selecting comment-only blocks
+      const block = get(values, selectedId) as IBlockData | null;
+      if (block && isCommentBlock(block)) return;
+
       setFocusIdx(selectedId);
       setTimeout(() => {
         scrollBlockEleIntoView({ idx: selectedId });
       }, 50);
     },
-    [setFocusIdx],
+    [setFocusIdx, values],
   );
 
   const onContextMenu = useCallback(
