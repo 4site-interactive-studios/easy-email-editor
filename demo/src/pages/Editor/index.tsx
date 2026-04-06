@@ -96,6 +96,16 @@ function generateThumbnailInBackground(articleId: number, content: IBlockData): 
 }
 
 /**
+ * Unwrap comment-only <mj-raw> blocks back to bare HTML comments.
+ * The editor wraps comments in <mj-raw> because MJML requires it for
+ * compilation, but for display/export we show the clean original form.
+ */
+function unwrapCommentRawBlocks(mjml: string): string {
+  // Match <mj-raw> blocks that contain ONLY an HTML comment (with optional whitespace)
+  return mjml.replace(/<mj-raw>\s*(<!--[\s\S]*?-->)\s*<\/mj-raw>/gi, '$1');
+}
+
+/**
  * Strip editor-internal metadata from MJML output so the user sees
  * clean, standard MJML. Removes:
  * - <mj-html-attributes>...</mj-html-attributes> blocks (easy-email metadata)
@@ -106,6 +116,18 @@ function stripEditorMetadata(mjml: string): string {
   let result = mjml.replace(/<mj-html-attributes>[\s\S]*?<\/mj-html-attributes>\s*/gi, '');
   // Collapse runs of blank lines to single blank line
   result = result.replace(/\n{3,}/g, '\n\n');
+  return result;
+}
+
+/**
+ * Clean MJML for display/export — always unwraps comment-only mj-raw blocks,
+ * and optionally strips editor metadata.
+ */
+function cleanMjmlForDisplay(mjml: string, hideMetadata: boolean): string {
+  let result = unwrapCommentRawBlocks(mjml);
+  if (hideMetadata) {
+    result = stripEditorMetadata(result);
+  }
   return result;
 }
 
@@ -331,9 +353,7 @@ export default function Editor() {
       context: values.content,
       beautify: true,
     });
-    if (getAppSettings().hideEditorMetadata) {
-      mjml = stripEditorMetadata(mjml);
-    }
+    mjml = cleanMjmlForDisplay(mjml, getAppSettings().hideEditorMetadata);
     setCodeMjml(mjml);
     codeMjmlRef.current = mjml;
     setCodeMode(true);
@@ -615,9 +635,7 @@ export default function Editor() {
         context: values.content,
         beautify: true,
       });
-      if (getAppSettings().hideEditorMetadata) {
-        mjml = stripEditorMetadata(mjml);
-      }
+      mjml = cleanMjmlForDisplay(mjml, getAppSettings().hideEditorMetadata);
       setCodeMjml(mjml);
       codeMjmlRef.current = mjml;
       setCodeMode(true);
@@ -721,9 +739,7 @@ export default function Editor() {
         ? JsonToMjml({ data: formApiRef.current.getState().values.content, mode: 'production', context: formApiRef.current.getState().values.content, beautify: true })
         : '';
     if (!mjml) return;
-    if (getAppSettings().hideEditorMetadata) {
-      mjml = stripEditorMetadata(mjml);
-    }
+    mjml = cleanMjmlForDisplay(mjml, getAppSettings().hideEditorMetadata);
     const subject = formApiRef.current?.getState().values.subject || 'email';
     downloadFile(mjml, `${subject}.mjml`, 'text/xml');
   }, [codeMode]);
