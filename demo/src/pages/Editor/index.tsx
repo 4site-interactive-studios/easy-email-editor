@@ -567,9 +567,10 @@ export default function Editor() {
     const values = await readFormValuesAfterFlush(formApiRef.current);
     const newId = api.generateId();
     const namedValues = { ...values, subject: templateName.trim() };
-    performSave(newId, namedValues, 'Manual save');
+    // Await the save to ensure it completes before updating state/URL
+    await performSave(newId, namedValues, 'Manual save');
     setSavedArticleId(newId);
-    history.replace(`/editor?id=${newId}${isTemplateMode ? '&template=1' : ''}`);
+    history.replace(`/editor?id=${newId}${isTemplateModeRef.current ? '&template=1' : ''}`);
   }, [history, templateName, performSave]);
 
   // ── Restore revision ──
