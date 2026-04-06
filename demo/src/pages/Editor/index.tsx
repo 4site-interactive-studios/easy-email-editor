@@ -1005,15 +1005,19 @@ export default function Editor() {
                       >
                         Save
                       </button>
-                    ) : (
+                    ) : (() => {
+                      const hasUnsavedChanges = contentJson !== lastSavedContentRef.current;
+                      return (
                       <span className='relative group inline-flex items-center'>
                         <span
                           className={`inline-flex items-center gap-1 text-sm font-medium cursor-default ${
-                            saveError ? 'text-amber-600' : 'text-green-600'
+                            saveError ? 'text-amber-600' : hasUnsavedChanges ? 'text-gray-400' : 'text-green-600'
                           }`}
                         >
                           {saveError ? (
                             <><AlertTriangle size={14} /> Save failed</>
+                          ) : hasUnsavedChanges ? (
+                            <><span className='text-gray-300'>●</span> Unsaved changes</>
                           ) : (
                             <><Check size={14} /> Saved</>
                           )}
@@ -1022,7 +1026,8 @@ export default function Editor() {
                           {savedTooltip}
                         </span>
                       </span>
-                    )}
+                      );
+                    })()}
 
                     {/* Validation */}
                     <button
