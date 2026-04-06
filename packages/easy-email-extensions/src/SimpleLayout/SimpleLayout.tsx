@@ -91,6 +91,15 @@ const RIGHT_MIN = 260;
 const RIGHT_DEFAULT = 350;
 const RIGHT_MAX = 500;
 
+// Persist right sidebar collapsed state across SimpleLayout re-mounts
+// (e.g., when editorKey changes on code mode exit). Resets on page navigation.
+let _rightCollapsedPersist: boolean | null = null;
+
+/** Reset persisted sidebar state — call when leaving the editor page */
+export function resetSidebarState() {
+  _rightCollapsedPersist = null;
+}
+
 export const SimpleLayout: React.FC<
   {
     showSourceCode?: boolean;
@@ -117,7 +126,14 @@ export const SimpleLayout: React.FC<
   const leftPeekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rightHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const leftCollapseHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [rightCollapsed, setRightCollapsed] = useState(() => isNarrow);
+  const [rightCollapsed, _setRightCollapsed] = useState(() => _rightCollapsedPersist ?? isNarrow);
+  const setRightCollapsed = useCallback((v: boolean | ((prev: boolean) => boolean)) => {
+    _setRightCollapsed(prev => {
+      const next = typeof v === 'function' ? v(prev) : v;
+      _rightCollapsedPersist = next;
+      return next;
+    });
+  }, []);
   const [leftWidth, setLeftWidth] = useState(LEFT_DEFAULT);
   const [rightWidth, setRightWidth] = useState(RIGHT_DEFAULT);
 
