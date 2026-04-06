@@ -6,8 +6,6 @@ import templateList from '@demo/store/templateList';
 import { Plus, Search, X, FileCode, LayoutTemplate } from 'lucide-react';
 import { CardItem } from './components/CardItem';
 import { history } from '@demo/utils/history';
-import templates from '@demo/config/templates.json';
-import { getTemplate } from '@demo/config/getTemplate';
 import { generateThumbnail } from '@demo/utils/generateThumbnail';
 import { IBlockData } from 'easy-email-core';
 import { nowUnix } from '@demo/utils/time';
@@ -67,30 +65,6 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [dispatch]);
 
-  // Generate thumbnails for built-in templates that aren't cached yet
-  useEffect(() => {
-    const cache = readThumbCache();
-
-    templates.forEach(async t => {
-      if (cache[t.article_id]) return;
-      try {
-        const data = await getTemplate(t.article_id);
-        if (!data) return;
-        const content =
-          typeof data.content === 'string'
-            ? JSON.parse(data.content)
-            : typeof data.content.content === 'string'
-              ? JSON.parse(data.content.content)
-              : data.content;
-        const picture = await generateThumbnail(content as IBlockData);
-        cache[t.article_id] = picture;
-        localStorage.setItem(THUMB_CACHE_KEY, JSON.stringify(cache));
-        setThumbs({ ...cache });
-      } catch {
-        // ignore
-      }
-    });
-  }, []);
 
   // Generate thumbnails for saved templates that don't have one yet
   useEffect(() => {
@@ -251,7 +225,7 @@ export default function Home() {
             {!search.trim() && (
               <>
                 <p className='text-gray-400 text-sm mt-1 mb-4'>
-                  Start from scratch, import MJML, or pick a template below
+                  Start from scratch or import MJML
                 </p>
                 <div className='flex items-center justify-center gap-2'>
                   <button
@@ -320,32 +294,6 @@ export default function Home() {
               <span className='text-xs mt-1 font-medium'>New Template</span>
             </button>
           </div>
-        )}
-
-        {/* Built-in templates */}
-        {templates.length > 0 && (
-          <>
-            <div className='flex items-center gap-4 my-7'>
-              <hr className='flex-1 border-gray-200' />
-              <span className='text-gray-400 text-xs font-medium uppercase tracking-wide whitespace-nowrap'>
-                Start from a template
-              </span>
-              <hr className='flex-1 border-gray-200' />
-            </div>
-            <div className='flex flex-wrap gap-5'>
-              {templates.map(item => (
-                <CardItem
-                  data={{
-                    ...(item as any),
-                    picture: thumbs[item.article_id] || (item as any).picture,
-                  }}
-                  key={item.article_id}
-                  isBuiltIn
-                  activeUsers={presence[String(item.article_id)]}
-                />
-              ))}
-            </div>
-          </>
         )}
 
         {/* Import MJML modal */}

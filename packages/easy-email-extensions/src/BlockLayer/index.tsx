@@ -24,7 +24,7 @@ import {
 } from 'easy-email-core';
 import styles from './index.module.scss';
 import { cloneDeep, get, isString, isEqual } from 'lodash';
-import { EyeIcon } from './components/EyeIcon';
+// EyeIcon removed
 import { BlockTree, BlockTreeProps } from './components/BlockTree';
 import { ContextMenu } from './components/ContextMenu';
 import { classnames } from '@extensions/utils/classnames';
@@ -67,19 +67,6 @@ export function BlockLayer(props: BlockLayerProps) {
   // Removed "Selected only" toggle — always show the full tree
   // null = no forced state; string[] = force these keys
   const [forceExpandedKeys, setForceExpandedKeys] = useState<string[] | null>(null);
-
-  const onToggleVisible = useCallback(
-    ({ id }: IBlockDataWithId, e: React.MouseEvent) => {
-      e.stopPropagation();
-      const blockData = get(valueRef.current, id) as IBlockData | null;
-
-      if (blockData) {
-        blockData.data.hidden = !Boolean(blockData.data.hidden);
-        setValueByIdx(id, blockData);
-      }
-    },
-    [setValueByIdx, valueRef],
-  );
 
   const renderTitle = useCallback(
     (data: IBlockDataWithId) => {
@@ -132,16 +119,10 @@ export function BlockLayer(props: BlockLayerProps) {
               )}
             </div>
           </div>
-          <div className={styles.eyeIcon}>
-            <EyeIcon
-              blockData={data}
-              onToggleVisible={onToggleVisible}
-            />
-          </div>
         </div>
       );
     },
-    [onToggleVisible, propsRenderTitle],
+    [propsRenderTitle],
   );
 
   const fullTreeData = useMemo(() => {
