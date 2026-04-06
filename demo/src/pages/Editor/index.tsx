@@ -40,7 +40,7 @@ import {
 } from 'easy-email-editor';
 
 import { AdvancedType, IBlockData, JsonToMjml } from 'easy-email-core';
-import { ExtensionProps, SimpleLayout, resetSidebarState } from 'easy-email-extensions';
+import { ExtensionProps, SimpleLayout } from 'easy-email-extensions';
 
 import 'easy-email-editor/lib/style.css';
 import 'easy-email-extensions/lib/style.css';
@@ -514,7 +514,6 @@ export default function Editor() {
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
       if (validationTimerRef.current) clearTimeout(validationTimerRef.current);
       if (broadcastTimerRef.current) clearTimeout(broadcastTimerRef.current);
-      resetSidebarState();
     };
   }, []);
 
@@ -1202,7 +1201,7 @@ export default function Editor() {
                   />
                 ) : (
                   <div ref={editorContainerRef as any} style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
-                    <SimpleLayout showSourceCode={false} showBlockLayer hoverExpandSidebars={getAppSettings().hoverExpandSidebars} blockMjmlPanel={<BlockMjmlEditor />}>
+                    <SimpleLayout showSourceCode={false} showBlockLayer hoverExpandSidebars={appSettings.hoverExpandSidebars}>
                       <EmailEditor />
                     </SimpleLayout>
                     {multiUserEnabled && (
