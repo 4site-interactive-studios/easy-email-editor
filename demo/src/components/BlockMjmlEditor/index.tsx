@@ -62,6 +62,7 @@ export function BlockMjmlEditor() {
   const { setValueByIdx, focusBlock, values } = useBlock();
   const { focusIdx, setFocusIdx } = useFocusIdx();
   const { pageData } = useEditorContext();
+  const [mjmlValid, setMjmlValid] = useState(true);
   const { mergeTags } = useEditorProps();
   const [mjmlText, setMjmlText] = useState('');
   const editorRef = useRef<any>(null);
@@ -87,6 +88,7 @@ export function BlockMjmlEditor() {
 
   // Re-generate MJML when the focused block changes
   useEffect(() => {
+    setMjmlValid(true);
     if (focusBlock) {
       const generated = JsonToMjml({
         idx: focusIdx,
@@ -105,38 +107,44 @@ export function BlockMjmlEditor() {
     };
   }, [focusBlock, focusIdx, pageData, mergeTags]);
 
-  // Apply MJML changes back to the block tree
-  const applyMjml = useCallback((mjml: string) => {
+  // Apply MJML changes back to the block tree.
+  // silent=true: during typing, skip errors silently (don't update visual editor)
+  // silent=false: on blur, show error if still invalid
+  const applyMjml = useCallback((mjml: string, silent = false) => {
     try {
       const parseValue = MjmlToJson(mjml);
       if (parseValue.type !== BasicType.PAGE) {
         const parentBlock = getParentByIdx(values, focusIdx)!;
         const parseBlock = BlockManager.getBlockByType(parseValue.type);
         if (!parseBlock?.validParentType.includes(parentBlock?.type)) {
-          Message.error('Invalid content for this position');
+          setMjmlValid(false);
+          if (!silent) Message.error('Invalid content for this position');
           return;
         }
       } else if (focusIdx !== getPageIdx()) {
-        Message.error('Invalid content');
+        setMjmlValid(false);
+        if (!silent) Message.error('Invalid content');
         return;
       }
+      setMjmlValid(true);
       setValueByIdx(focusIdx, parseValue);
     } catch (error) {
-      Message.error('Invalid MJML');
+      setMjmlValid(false);
+      if (!silent) Message.error('Invalid MJML');
     }
   }, [focusIdx, setValueByIdx, values]);
 
-  // Handle code changes — short debounce for near-instant visual updates
+  // Handle code changes — short debounce, silent validation
   const handleChange = useCallback((_editor: any, _data: any, value: string) => {
     setMjmlText(value);
     if (applyTimerRef.current) clearTimeout(applyTimerRef.current);
-    applyTimerRef.current = setTimeout(() => applyMjml(value), 300);
+    applyTimerRef.current = setTimeout(() => applyMjml(value, true), 300);
   }, [applyMjml]);
 
-  // Apply on blur (immediate)
+  // Apply on blur — show error if invalid
   const handleBlur = useCallback(() => {
     if (applyTimerRef.current) clearTimeout(applyTimerRef.current);
-    applyMjml(mjmlText);
+    applyMjml(mjmlText, false);
   }, [applyMjml, mjmlText]);
 
   const handleJumpUp = useCallback(() => {
@@ -221,11 +229,11 @@ export function BlockMjmlEditor() {
         })}
       </div>
 
-      {/* Block info bar with Jump Up button */}
+      {/* Block info bar with Jump Up button + validity indicator */}
       <div style={{
         padding: '5px 8px',
-        background: '#fef3c7',
-        borderBottom: '1px solid #fde68a',
+        background: mjmlValid ? '#fef3c7' : '#fef2f2',
+        borderBottom: `1px solid ${mjmlValid ? '#fde68a' : '#fecaca'}`,
         fontSize: 12,
         fontWeight: 600,
         color: '#92400e',
@@ -258,9 +266,14 @@ export function BlockMjmlEditor() {
             <ChevronUp size={14} strokeWidth={2.5} />
           </button>
         )}
-        <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}>
+        <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, monospace', color: mjmlValid ? '#92400e' : '#991b1b' }}>
           &lt;{blockName}&gt;
         </span>
+        {!mjmlValid && (
+          <span style={{ fontSize: 10, color: '#dc2626', fontWeight: 500, marginLeft: 'auto' }}>
+            Invalid — not applied
+          </span>
+        )}
       </div>
 
       {/* CodeMirror editor */}
