@@ -32,6 +32,21 @@
   overflow: hidden;
 }
 
+/* Constrain tree node titles so text truncates with ellipsis at the sidebar edge */
+:global(#BlockLayerManager .arco-tree-node-title) {
+  overflow: hidden;
+  min-width: 0;
+  flex: 1;
+}
+:global(#BlockLayerManager .arco-tree-node-title-text) {
+  overflow: hidden;
+  min-width: 0;
+  width: 100%;
+}
+:global(#BlockLayerManager .arco-tree-node) {
+  overflow: hidden;
+}
+
 :global(#BlockLayerManager .arco-tree-node-selected .arco-tree-node-title) {
   background-color: rgb(var(--primary-1));
 }
