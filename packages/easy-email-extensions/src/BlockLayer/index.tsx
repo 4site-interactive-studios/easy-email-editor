@@ -102,20 +102,18 @@ export function BlockLayer(props: BlockLayerProps) {
             !isPage && 'email-block',
           )}
         >
-          <Space
-            align='center'
-            size='mini'
-          >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1, minWidth: 0 }}>
             <IconFont
               iconName={getIconNameByBlockType(data.type)}
-              style={{ fontSize: 12, color: '#999' }}
+              style={{ fontSize: 12, color: '#999', flexShrink: 0 }}
             />
             <div
               style={{
                 overflow: 'hidden',
                 whiteSpace: 'nowrap',
-                width: commentLabel ? '10em' : '5em',
                 textOverflow: 'ellipsis',
+                flex: 1,
+                minWidth: 0,
               }}
             >
               <TextStyle size='smallest'>
@@ -131,7 +129,7 @@ export function BlockLayer(props: BlockLayerProps) {
                 </span>
               )}
             </div>
-          </Space>
+          </div>
           <div className={styles.eyeIcon}>
             <EyeIcon
               blockData={data}
