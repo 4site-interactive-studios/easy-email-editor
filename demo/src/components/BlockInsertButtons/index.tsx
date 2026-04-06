@@ -71,6 +71,8 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
   const [popup, setPopup] = useState<'above' | 'below' | null>(null);
   const [rect, setRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const popupRef = useRef<HTMLDivElement>(null);
+  // Track which pill was last hovered so it renders on top when they overlap
+  const [topPill, setTopPill] = useState<'top' | 'bottom'>('bottom');
 
   const settings = getAppSettings();
 
@@ -280,7 +282,10 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
   return createPortal(
     <>
       {/* ── Top pill: [+ Insert] | [⧉ Copy] | [↰ Up & Out] | [↑ Move Up] ── */}
-      <div style={{ ...pillStyle, top: rect.top - 12, left: centerX }}>
+      <div
+        style={{ ...pillStyle, top: rect.top - 12, left: centerX, zIndex: topPill === 'top' ? 16 : 15 }}
+        onMouseEnter={() => setTopPill('top')}
+      >
         <button
           style={plusSegment}
           onClick={e => { e.stopPropagation(); setPopup(popup === 'above' ? null : 'above'); }}
@@ -315,7 +320,10 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
       </div>
 
       {/* ── Bottom pill: [+ Insert] | [⧉ Copy] | [↳ Down & Out] | [↓ Move Down] ── */}
-      <div style={{ ...pillStyle, top: rect.top + rect.height - 12, left: centerX }}>
+      <div
+        style={{ ...pillStyle, top: rect.top + rect.height - 12, left: centerX, zIndex: topPill === 'bottom' ? 16 : 15 }}
+        onMouseEnter={() => setTopPill('bottom')}
+      >
         <button
           style={plusSegment}
           onClick={e => { e.stopPropagation(); setPopup(popup === 'below' ? null : 'below'); }}
