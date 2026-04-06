@@ -45,40 +45,35 @@ export function FocusTooltip() {
             `}
           </style>
 
-          {/* Delete button on the right edge */}
+          {/* Delete button — centered on the right edge */}
           {!isPage && (
             <div
+              onClick={handleDelete}
+              onMouseDown={e => e.preventDefault()}
               style={{
                 position: 'absolute',
                 zIndex: 9999,
-                right: -1,
+                right: 0,
                 top: '50%',
-                transform: 'translateY(-50%)',
+                transform: 'translate(50%, -50%)',
+                backgroundColor: '#ef4444',
+                color: '#ffffff',
+                height: 24,
+                width: 24,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                pointerEvents: 'auto',
+                borderRadius: '50%',
+                border: '2px solid #fff',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
               }}
-              onClick={e => e.stopPropagation()}
-              onMouseDown={e => e.preventDefault()}
+              title='Delete block'
             >
-              <div
-                onClick={handleDelete}
-                style={{
-                  backgroundColor: '#ef4444',
-                  color: '#ffffff',
-                  height: 24,
-                  width: 24,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  pointerEvents: 'auto',
-                  borderRadius: 4,
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                }}
-                title='Delete block'
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                </svg>
-              </div>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+              </svg>
             </div>
           )}
 
