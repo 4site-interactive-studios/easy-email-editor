@@ -4,8 +4,6 @@ const SETTINGS_KEY = 'easy-email-app-settings';
 
 export interface AppSettings {
   multiUserEnabled: boolean;
-  moveOutEnabled: boolean;
-  moveInEnabled: boolean;
   hideEditorMetadata: boolean;
   showSpacerIndicator: boolean;
   spacerIndicatorColor: string;
@@ -17,8 +15,6 @@ const DEFAULT_SPACER_COLOR = '147, 197, 253';
 
 const defaults: AppSettings = {
   multiUserEnabled: false,
-  moveOutEnabled: false,
-  moveInEnabled: false,
   hideEditorMetadata: false,
   showSpacerIndicator: true,
   spacerIndicatorColor: DEFAULT_SPACER_COLOR,

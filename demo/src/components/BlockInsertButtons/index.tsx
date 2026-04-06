@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Copy, Type, Image, Square, Minus, ArrowDownUp, Columns, LayoutTemplate, ChevronRight, ChevronUp, ChevronDown, CornerLeftUp, CornerRightDown, Table2, ListCollapse, Navigation, Share2, Code, Box } from 'lucide-react';
-import { BlockManager, BasicType, getSiblingIdx, getParentIdx, isCommentBlock } from 'easy-email-core';
+import { Plus, Copy, Type, Image, Square, Minus, ArrowDownUp, Columns, LayoutTemplate, ChevronRight, ChevronUp, ChevronDown, Table2, ListCollapse, Navigation, Share2, Code, Box } from 'lucide-react';
+import { BlockManager, BasicType, getSiblingIdx, isCommentBlock } from 'easy-email-core';
 import { useBlock, useFocusIdx, getBlockNodeByIdx } from 'easy-email-editor';
-import { getAppSettings } from '@demo/hooks/useAppSettings';
 import { get } from 'lodash';
 
 /**
@@ -74,8 +73,6 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
   // Track which pill was last hovered so it renders on top when they overlap
   const [topPill, setTopPill] = useState<'top' | 'bottom'>('bottom');
 
-  const settings = getAppSettings();
-
   // Get the parent block info
   const parentInfo = useMemo(() => {
     if (!focusIdx || focusIdx === 'content') return null;
@@ -86,29 +83,19 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
     const childIndex = parseInt(match[2], 10);
     const parentBlock = get(values, parentIdx);
     const childCount = parentBlock?.children?.length ?? 0;
-    const parentName = getBlockName(parentBlock);
 
     const prevSibling = childIndex > 0 ? parentBlock?.children?.[childIndex - 1] : null;
     const nextSibling = childIndex < childCount - 1 ? parentBlock?.children?.[childIndex + 1] : null;
-
-    const isFirst = childIndex === 0;
-    const isLast = childIndex === childCount - 1;
-    const canMoveOut = parentIdx !== 'content';
 
     return {
       parentIdx,
       childIndex,
       childCount,
       parentType: parentBlock?.type as string | undefined,
-      parentName,
       canMoveUp: childIndex > 0,
       canMoveDown: childIndex < childCount - 1,
-      canMoveOut,
-      isFirst,
-      isLast,
       upLabel: prevSibling ? `Move before the ${getBlockName(prevSibling)}` : '',
       downLabel: nextSibling ? `Move after the ${getBlockName(nextSibling)}` : '',
-      outLabel: canMoveOut ? `Move out of the ${parentName}` : '',
     };
   }, [focusIdx, values]);
 
@@ -201,38 +188,9 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
     }
   }, [focusIdx, moveBlock, values]);
 
-  const handleMoveUpAndOut = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!parentInfo?.parentIdx || !parentInfo.canMoveOut) return;
-    const grandparentIdx = getParentIdx(parentInfo.parentIdx);
-    if (!grandparentIdx) return;
-    const parentMatch = parentInfo.parentIdx.match(/\.children\.\[(\d+)\]$/);
-    if (!parentMatch) return;
-    const parentChildIndex = parseInt(parentMatch[1], 10);
-    // Move before the parent
-    moveBlock(focusIdx, `${grandparentIdx}.children.[${parentChildIndex}]`);
-  }, [focusIdx, moveBlock, parentInfo]);
-
-  const handleMoveDownAndOut = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!parentInfo?.parentIdx || !parentInfo.canMoveOut) return;
-    const grandparentIdx = getParentIdx(parentInfo.parentIdx);
-    if (!grandparentIdx) return;
-    const parentMatch = parentInfo.parentIdx.match(/\.children\.\[(\d+)\]$/);
-    if (!parentMatch) return;
-    const parentChildIndex = parseInt(parentMatch[1], 10);
-    // Move after the parent
-    moveBlock(focusIdx, `${grandparentIdx}.children.[${parentChildIndex + 1}]`);
-  }, [focusIdx, moveBlock, parentInfo]);
-
   if (!rect || !parentInfo || validBlocks.length === 0 || !containerRef.current) return null;
 
   const centerX = rect.left + rect.width / 2;
-
-  // Show "up and out" when block is first child and can move out
-  const showUpAndOut = settings.moveOutEnabled && parentInfo.isFirst && parentInfo.canMoveOut && !parentInfo.canMoveUp;
-  // Show "down and out" when block is last child and can move out
-  const showDownAndOut = settings.moveOutEnabled && parentInfo.isLast && parentInfo.canMoveOut && !parentInfo.canMoveDown;
 
   // ── Pill styles ──
   const pillStyle: React.CSSProperties = {
@@ -301,14 +259,6 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
         >
           <Copy size={13} strokeWidth={2.5} />
         </button>
-        {showUpAndOut && (
-          <>
-            <div style={divider} />
-            <button style={moveSegment} onClick={handleMoveUpAndOut} title={`Move up and out of the ${parentInfo.parentName}`}>
-              <CornerLeftUp size={13} strokeWidth={2.5} />
-            </button>
-          </>
-        )}
         {parentInfo.canMoveUp && (
           <>
             <div style={divider} />
@@ -339,14 +289,6 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
         >
           <Copy size={13} strokeWidth={2.5} />
         </button>
-        {showDownAndOut && (
-          <>
-            <div style={divider} />
-            <button style={moveSegment} onClick={handleMoveDownAndOut} title={`Move down and out of the ${parentInfo.parentName}`}>
-              <CornerRightDown size={13} strokeWidth={2.5} />
-            </button>
-          </>
-        )}
         {parentInfo.canMoveDown && (
           <>
             <div style={divider} />
