@@ -119,27 +119,6 @@ export default function Settings() {
                 <input
                   type='checkbox'
                   className='sr-only peer'
-                  checked={!appSettings.hideIconToolbar}
-                  onChange={e => updateAppSettings({ hideIconToolbar: !e.target.checked })}
-                />
-                <div className='w-9 h-5 bg-gray-300 rounded-full peer-checked:bg-blue-600 transition-colors' />
-                <div className='absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4' />
-              </div>
-              <div>
-                <span className='text-sm font-medium text-gray-700 group-hover:text-gray-900'>
-                  Show block toolbar
-                </span>
-                <span className='block text-xs text-gray-400'>
-                  The icon sidebar on the left with drag-and-drop blocks
-                </span>
-              </div>
-            </label>
-
-            <label className='flex items-center gap-3 cursor-pointer select-none group'>
-              <div className='relative'>
-                <input
-                  type='checkbox'
-                  className='sr-only peer'
                   checked={appSettings.showLayoutPanel}
                   onChange={e => updateAppSettings({ showLayoutPanel: e.target.checked })}
                 />

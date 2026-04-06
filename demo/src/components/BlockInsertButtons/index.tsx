@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Type, Image, Square, Minus, ArrowDownUp, Columns, LayoutTemplate, ChevronRight, ChevronUp, ChevronDown, CornerLeftUp, CornerRightDown, Table2, ListCollapse, Navigation, Share2, Code, Box } from 'lucide-react';
+import { Plus, Copy, Type, Image, Square, Minus, ArrowDownUp, Columns, LayoutTemplate, ChevronRight, ChevronUp, ChevronDown, CornerLeftUp, CornerRightDown, Table2, ListCollapse, Navigation, Share2, Code, Box } from 'lucide-react';
 import { BlockManager, BasicType, getSiblingIdx, getParentIdx, isCommentBlock } from 'easy-email-core';
 import { useBlock, useFocusIdx, getBlockNodeByIdx } from 'easy-email-editor';
 import { getAppSettings } from '@demo/hooks/useAppSettings';
@@ -67,7 +67,7 @@ interface BlockInsertButtonsProps {
 
 export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
   const { focusIdx } = useFocusIdx();
-  const { addBlock, moveBlock, values } = useBlock();
+  const { addBlock, moveBlock, copyBlock, values } = useBlock();
   const [popup, setPopup] = useState<'above' | 'below' | null>(null);
   const [rect, setRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const popupRef = useRef<HTMLDivElement>(null);
@@ -157,6 +157,11 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
     addBlock({ type: blockType, parentIdx: parentInfo.parentIdx, positionIndex: position === 'above' ? parentInfo.childIndex : parentInfo.childIndex + 1 });
     setPopup(null);
   }, [parentInfo, addBlock]);
+
+  const handleDuplicate = useCallback(() => {
+    copyBlock(focusIdx);
+    setPopup(null);
+  }, [focusIdx, copyBlock]);
 
   const handleMoveUp = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -349,6 +354,21 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
             maxHeight: 300,
             overflowY: 'auto',
           }}>
+            {/* Duplicate option */}
+            <button
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                padding: '6px 12px', fontSize: 13, color: '#374151',
+                background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#eef2ff'; (e.currentTarget as HTMLElement).style.color = '#4338ca'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = '#374151'; }}
+              onClick={handleDuplicate}
+            >
+              <span style={{ color: '#9ca3af', flexShrink: 0 }}><Copy size={16} /></span>
+              Duplicate this block
+            </button>
+            <div style={{ height: 1, background: '#e5e7eb', margin: '4px 0' }} />
             <div style={{
               padding: '6px 12px 4px',
               fontSize: 10, fontWeight: 600, color: '#9ca3af',

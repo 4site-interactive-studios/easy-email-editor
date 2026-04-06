@@ -3,7 +3,6 @@ import { useState, useCallback, useEffect } from 'react';
 const SETTINGS_KEY = 'easy-email-app-settings';
 
 export interface AppSettings {
-  hideIconToolbar: boolean;
   multiUserEnabled: boolean;
   moveOutEnabled: boolean;
   moveInEnabled: boolean;
@@ -12,7 +11,6 @@ export interface AppSettings {
 }
 
 const defaults: AppSettings = {
-  hideIconToolbar: true,
   multiUserEnabled: false,
   moveOutEnabled: false,
   moveInEnabled: false,

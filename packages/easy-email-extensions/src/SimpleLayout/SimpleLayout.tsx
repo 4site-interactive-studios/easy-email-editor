@@ -1,4 +1,3 @@
-import { ShortcutToolbar } from '../ShortcutToolbar';
 import { Button, Card, ConfigProvider, Layout, Tabs } from '@arco-design/web-react';
 import { useEditorProps, useFocusIdx } from 'easy-email-editor';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -97,7 +96,6 @@ export const SimpleLayout: React.FC<
     jsonReadOnly?: boolean;
     mjmlReadOnly?: boolean;
     defaultShowLayer?: boolean;
-    initialLeftHidden?: boolean;
     showBlockLayer?: boolean;
     blockMjmlPanel?: React.ReactNode;
     children: React.ReactNode | React.ReactElement;
@@ -106,20 +104,12 @@ export const SimpleLayout: React.FC<
   const { height: containerHeight } = useEditorProps();
   const { showSourceCode = true, defaultShowLayer = true, jsonReadOnly = false, mjmlReadOnly = true } = props;
   const showBlockLayer = props.showBlockLayer ?? false;
-  const hideToolbar = props.initialLeftHidden ?? false;
   const { width: viewportWidth } = useWindowSize();
   const isNarrow = viewportWidth < 1280;
 
-  // If block layer is enabled, start expanded; otherwise collapsed
   const [collapsed, setCollapsed] = useState(() => showBlockLayer ? false : (!defaultShowLayer || isNarrow));
-  // Manual collapse state for the layout panel (when toolbar is hidden)
-  // Starts false (expanded) — once manually collapsed, stays collapsed until manually expanded
   const [layoutManuallyCollapsed, setLayoutManuallyCollapsed] = useState(false);
-  // If toolbar is hidden but block layer is enabled, don't hide the left sider entirely
-  const [leftHidden, setLeftHidden] = useState(() => {
-    if (showBlockLayer) return false;
-    return hideToolbar;
-  });
+  const [leftHidden, setLeftHidden] = useState(!showBlockLayer);
   const [leftPeeking, setLeftPeeking] = useState(false);
   const leftPeekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [rightCollapsed, setRightCollapsed] = useState(() => isNarrow);
@@ -159,44 +149,20 @@ export const SimpleLayout: React.FC<
           style={{
             paddingRight: 0,
             position: 'relative',
-            // Hide when: toolbar hidden AND (no block layer OR layout manually collapsed)
-            display: (leftHidden || (hideToolbar && showBlockLayer && layoutManuallyCollapsed)) ? 'none' : undefined,
+            display: (leftHidden || (showBlockLayer && layoutManuallyCollapsed)) ? 'none' : undefined,
           }}
           collapsed={collapsed}
           collapsible
           trigger={null}
           breakpoint='xl'
-          collapsedWidth={hideToolbar && showBlockLayer ? 0 : 76}
+          collapsedWidth={0}
           width={leftWidth}
         >
-          <Card
-            bodyStyle={{ padding: 0 }}
-            style={{ border: 'none' }}
-          >
-            {/* Shortcut toolbar — hidden when toolbar setting is off */}
-            {!hideToolbar && (
-              <Card.Grid style={{ width: 76, textAlign: 'center' }}>
-                <ShortcutToolbar />
-                <Button
-                  style={{
-                    marginTop: 20,
-                    marginLeft: 'auto',
-                    marginRight: 'auto',
-                  }}
-                  icon={collapsed ? <IconRight /> : <IconLeft />}
-                  shape='round'
-                  onClick={() => {
-                    if (collapsed) {
-                      setLeftHidden(true);
-                    } else {
-                      setCollapsed(true);
-                    }
-                  }}
-                />
-              </Card.Grid>
-            )}
-            {/* Layout panel — shown when showBlockLayer is true or toolbar is visible and expanded */}
-            {(showBlockLayer || !hideToolbar) && (
+          {showBlockLayer && (
+            <Card
+              bodyStyle={{ padding: 0 }}
+              style={{ border: 'none' }}
+            >
               <Card.Grid
                 className={styles.customScrollBar}
                 style={{
@@ -213,27 +179,25 @@ export const SimpleLayout: React.FC<
                   style={{ border: 'none' }}
                   headerStyle={{ height: 50 }}
                   extra={
-                    hideToolbar && showBlockLayer ? (
-                      <Button
-                        size='mini'
-                        icon={<IconLeft />}
-                        onClick={() => setLayoutManuallyCollapsed(true)}
-                        style={{ marginRight: 4 }}
-                      />
-                    ) : undefined
+                    <Button
+                      size='mini'
+                      icon={<IconLeft />}
+                      onClick={() => setLayoutManuallyCollapsed(true)}
+                      style={{ marginRight: 4 }}
+                    />
                   }
                 >
                   {!collapsed && <BlockLayer renderTitle={props.renderTitle} />}
                 </Card>
               </Card.Grid>
-            )}
-          </Card>
+            </Card>
+          )}
           {!collapsed && <ResizeHandle side='left' onResize={onResizeLeft} />}
         </Layout.Sider>
 
         <Layout style={{ height: containerHeight, position: 'relative' }}>
           {/* Show expand tab when layout panel is manually collapsed */}
-          {(hideToolbar && showBlockLayer && layoutManuallyCollapsed) && (
+          {(showBlockLayer && layoutManuallyCollapsed) && (
             <div
               style={{
                 position: 'absolute',
@@ -261,9 +225,9 @@ export const SimpleLayout: React.FC<
               </div>
             </div>
           )}
-          {leftHidden && (
+          {/* Flyout for layout panel when hidden */}
+          {leftHidden && showBlockLayer && (
             <>
-              {/* Hover zone on left edge — triggers flyout after 300ms */}
               <div
                 style={{
                   position: 'absolute',
@@ -282,7 +246,6 @@ export const SimpleLayout: React.FC<
                 }}
                 onClick={() => { setLeftHidden(false); setLeftPeeking(false); }}
               >
-                {/* Visible tab indicator */}
                 <div style={{
                   position: 'absolute',
                   left: 0,
@@ -301,65 +264,40 @@ export const SimpleLayout: React.FC<
                   <IconRight style={{ color: '#fff', fontSize: 10 }} />
                 </div>
               </div>
-
-              {/* Flyout sidebar on hover */}
               {leftPeeking && (
                 <div
                   style={{
                     position: 'absolute',
                     left: 0,
                     top: 0,
-                    width: showBlockLayer && hideToolbar ? 240 : 76,
+                    width: 240,
                     height: '100%',
                     zIndex: 99,
                     background: '#fff',
                     boxShadow: '4px 0 16px rgba(0,0,0,0.15)',
                     borderRight: '1px solid #e5e7eb',
                     overflowY: 'auto',
-                    textAlign: showBlockLayer && hideToolbar ? 'left' : 'center',
                     display: 'flex',
                     flexDirection: 'column',
                   }}
                   onMouseLeave={() => setLeftPeeking(false)}
                 >
-                  {showBlockLayer && hideToolbar ? (
-                    /* Layout-only flyout */
-                    <>
-                      <Card
-                        title={t('Layout')}
-                        style={{ border: 'none', flex: 1 }}
-                        headerStyle={{ height: 40 }}
-                      >
-                        <BlockLayer renderTitle={props.renderTitle} />
-                      </Card>
-                      <div style={{ padding: 8, textAlign: 'center', borderTop: '1px solid #e5e7eb' }}>
-                        <Button
-                          size='small'
-                          style={{ fontSize: 11 }}
-                          onClick={() => { setLeftHidden(false); setLeftPeeking(false); }}
-                        >
-                          {t('Pin')}
-                        </Button>
-                      </div>
-                    </>
-                  ) : (
-                    /* Toolbar flyout */
-                    <>
-                      <ShortcutToolbar />
-                      <Button
-                        style={{
-                          marginTop: 20,
-                          marginLeft: 'auto',
-                          marginRight: 'auto',
-                          fontSize: 11,
-                        }}
-                        size='small'
-                        onClick={() => { setLeftHidden(false); setLeftPeeking(false); }}
-                      >
-                        {t('Pin')}
-                      </Button>
-                    </>
-                  )}
+                  <Card
+                    title={t('Layout')}
+                    style={{ border: 'none', flex: 1 }}
+                    headerStyle={{ height: 40 }}
+                  >
+                    <BlockLayer renderTitle={props.renderTitle} />
+                  </Card>
+                  <div style={{ padding: 8, textAlign: 'center', borderTop: '1px solid #e5e7eb' }}>
+                    <Button
+                      size='small'
+                      style={{ fontSize: 11 }}
+                      onClick={() => { setLeftHidden(false); setLeftPeeking(false); }}
+                    >
+                      {t('Pin')}
+                    </Button>
+                  </div>
                 </div>
               )}
             </>
