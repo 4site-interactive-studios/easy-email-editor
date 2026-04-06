@@ -8,6 +8,7 @@ export interface AppSettings {
   moveInEnabled: boolean;
   showLayoutPanel: boolean;
   hideEditorMetadata: boolean;
+  showSpacerIndicator: boolean;
 }
 
 const defaults: AppSettings = {
@@ -16,6 +17,7 @@ const defaults: AppSettings = {
   moveInEnabled: false,
   showLayoutPanel: false,
   hideEditorMetadata: false,
+  showSpacerIndicator: true,
 };
 
 function loadSettings(): AppSettings {

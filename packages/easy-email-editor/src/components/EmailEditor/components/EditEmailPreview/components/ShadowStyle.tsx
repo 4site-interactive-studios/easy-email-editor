@@ -43,6 +43,18 @@ export function ShadowStyle() {
 
             ${styles}
 
+            /* Spacer visual indicator — diagonal striped background (editor only) */
+            :host(.show-spacer-indicator) .node-type-spacer > table,
+            :host(.show-spacer-indicator) .node-type-spacer > div {
+              background-image: repeating-linear-gradient(
+                -45deg,
+                transparent,
+                transparent 4px,
+                rgba(147, 197, 253, 0.3) 4px,
+                rgba(147, 197, 253, 0.3) 8px
+              ) !important;
+            }
+
             `,
         }}
       />

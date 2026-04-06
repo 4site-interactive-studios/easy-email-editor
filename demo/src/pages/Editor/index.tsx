@@ -203,6 +203,20 @@ const defaultCategories: ExtensionProps['categories'] = [
 // ─── Editor ────────────────────────────────────────────────────────────────────
 
 /** Renders inside EmailEditorProvider to sync focus + text cursor ↔ collaboration. */
+/** Toggle spacer indicator class on shadow DOM host based on setting */
+function SpacerIndicatorSync() {
+  useEffect(() => {
+    const el = document.getElementById('VisualEditorEditMode');
+    if (!el) return;
+    if (getAppSettings().showSpacerIndicator) {
+      el.classList.add('show-spacer-indicator');
+    } else {
+      el.classList.remove('show-spacer-indicator');
+    }
+  });
+  return null;
+}
+
 function CollaborationSync({ collab }: { collab: ReturnType<typeof useCollaboration> }) {
   const { focusIdx } = useFocusIdx();
   const prevIdx = useRef('');
@@ -1094,6 +1108,7 @@ export default function Editor() {
                 </header>
 
                 <CollaborationSync collab={collab} />
+                <SpacerIndicatorSync />
 
                 {/* AI lock overlay — shown when another user is running AI fix */}
                 {collab.aiLock && collab.aiLock.userId !== collab.currentUser.userId && (
