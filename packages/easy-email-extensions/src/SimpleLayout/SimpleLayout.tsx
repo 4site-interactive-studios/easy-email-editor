@@ -208,14 +208,7 @@ export const SimpleLayout: React.FC<
                   style={{ border: 'none' }}
                   headerStyle={{ height: 40, padding: '0 8px' }}
                   bodyStyle={{ padding: 0 }}
-                  extra={
-                    <Button
-                      size='mini'
-                      icon={<IconLeft />}
-                      onClick={() => setShowLayoutColumn(false)}
-                      title={t('Hide layout')}
-                    />
-                  }
+                  extra={null}
                 >
                   <BlockLayer renderTitle={props.renderTitle} />
                 </Card>
@@ -247,15 +240,28 @@ export const SimpleLayout: React.FC<
                 <Tabs
                   className={styles.layoutTabs}
                   extra={
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginRight: 4 }}>
-                      {!showLayoutColumn && (
-                        <Button
-                          size='mini'
-                          icon={<IconLeft />}
-                          onClick={() => setShowLayoutColumn(true)}
-                          title={t('Show layout')}
-                        />
-                      )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginRight: 4 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer', fontSize: 11, color: '#6b7280' }} title={showLayoutColumn ? t('Hide layout tree') : t('Show layout tree')}>
+                        <div style={{ position: 'relative', width: 28, height: 16 }}>
+                          <input
+                            type='checkbox'
+                            checked={showLayoutColumn}
+                            onChange={e => setShowLayoutColumn(e.target.checked)}
+                            style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
+                          />
+                          <div style={{
+                            width: 28, height: 16, borderRadius: 8,
+                            background: showLayoutColumn ? '#3b82f6' : '#d1d5db',
+                            transition: 'background 0.15s',
+                          }} />
+                          <div style={{
+                            position: 'absolute', top: 2, left: showLayoutColumn ? 14 : 2,
+                            width: 12, height: 12, borderRadius: '50%',
+                            background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+                            transition: 'left 0.15s',
+                          }} />
+                        </div>
+                      </label>
                       <Button
                         size='mini'
                         icon={<IconLeft />}
