@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Controlled as CodeMirror } from 'react-codemirror2';
 import { Message } from '@arco-design/web-react';
-import { ChevronUp, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import {
   BasicType,
   BlockManager,
@@ -83,9 +83,6 @@ export function BlockMjmlEditor() {
     return crumbs;
   }, [focusIdx, values]);
 
-  const parentIdx = focusIdx ? getParentIdx(focusIdx) : undefined;
-  const canJumpUp = !!parentIdx;
-
   // Re-generate MJML when the focused block changes
   useEffect(() => {
     setMjmlValid(true);
@@ -146,18 +143,6 @@ export function BlockMjmlEditor() {
     if (applyTimerRef.current) clearTimeout(applyTimerRef.current);
     applyMjml(mjmlText, false);
   }, [applyMjml, mjmlText]);
-
-  const handleJumpUp = useCallback(() => {
-    if (parentIdx) {
-      // Apply any pending changes before jumping
-      if (applyTimerRef.current) {
-        clearTimeout(applyTimerRef.current);
-        applyMjml(mjmlText);
-      }
-      setFocusIdx(parentIdx);
-      scrollBlockEleIntoView({ idx: parentIdx });
-    }
-  }, [parentIdx, setFocusIdx, applyMjml, mjmlText]);
 
   const handleBreadcrumbClick = useCallback((idx: string) => {
     if (idx === focusIdx) return;
@@ -242,30 +227,6 @@ export function BlockMjmlEditor() {
         gap: 6,
         flexShrink: 0,
       }}>
-        {canJumpUp && (
-          <button
-            onClick={handleJumpUp}
-            title={`Jump to parent (${getBlockDisplayName(get(values, parentIdx))})`}
-            style={{
-              background: '#92400e',
-              color: '#fef3c7',
-              border: 'none',
-              borderRadius: 3,
-              width: 22,
-              height: 22,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              flexShrink: 0,
-              padding: 0,
-            }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#78350f'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#92400e'; }}
-          >
-            <ChevronUp size={14} strokeWidth={2.5} />
-          </button>
-        )}
         <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, monospace', color: mjmlValid ? '#92400e' : '#991b1b' }}>
           &lt;{blockName}&gt;
         </span>
