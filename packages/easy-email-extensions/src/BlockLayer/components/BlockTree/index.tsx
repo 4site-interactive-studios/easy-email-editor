@@ -13,6 +13,8 @@ export interface BlockTreeProps<T extends TreeNode<T>> {
   treeData: T[];
   selectedKeys?: string[];
   expandedKeys?: string[];
+  /** When set, replaces all expanded keys (used for expand/collapse all) */
+  forceExpandedKeys?: string[] | null;
   onSelect: (selectedId: string) => void;
   onContextMenu?: (nodeData: T, ev: React.MouseEvent) => void;
   onDragStart?: () => void;
@@ -93,6 +95,13 @@ export function BlockTree<T extends TreeNode<T>>(props: BlockTreeProps<T>) {
       props.expandedKeys ? [...keys, ...props.expandedKeys] : keys
     );
   }, [props.expandedKeys]);
+
+  // Force-replace expanded keys (for expand all / collapse all)
+  useEffect(() => {
+    if (props.forceExpandedKeys !== undefined && props.forceExpandedKeys !== null) {
+      setExpandedKeys(props.forceExpandedKeys);
+    }
+  }, [props.forceExpandedKeys]);
 
   const onDragStart = useCallback(
     (e: React.DragEvent<HTMLSpanElement>, node: NodeInstance) => {

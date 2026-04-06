@@ -65,6 +65,8 @@ export function BlockLayer(props: BlockLayerProps) {
   } | null>(null);
 
   const [focusOnly, setFocusOnly] = useState(true);
+  // null = no forced state; string[] = force these keys
+  const [forceExpandedKeys, setForceExpandedKeys] = useState<string[] | null>(null);
 
   const onToggleVisible = useCallback(
     ({ id }: IBlockDataWithId, e: React.MouseEvent) => {
@@ -216,6 +218,20 @@ export function BlockLayer(props: BlockLayerProps) {
     return [container];
   }, [fullTreeData, focusOnly, focusIdx]);
 
+  const handleExpandAll = useCallback(() => {
+    const ids: string[] = [];
+    const walk = (node: IBlockDataWithId) => { ids.push(node.id); node.children?.forEach(walk); };
+    treeData.forEach(walk);
+    setForceExpandedKeys(ids);
+    setTimeout(() => setForceExpandedKeys(null), 50);
+  }, [treeData]);
+
+  const handleCollapseAll = useCallback(() => {
+    // Keep just the root expanded so the tree isn't completely empty
+    setForceExpandedKeys(treeData.length > 0 ? [treeData[0].id] : []);
+    setTimeout(() => setForceExpandedKeys(null), 50);
+  }, [treeData]);
+
   const onSelect = useCallback(
     (selectedId: string) => {
       setFocusIdx(selectedId);
@@ -357,16 +373,36 @@ export function BlockLayer(props: BlockLayerProps) {
         color: '#86909c',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}>
-        <span>{t('Selected only')}</span>
-        <Switch
-          size='small'
-          checked={focusOnly}
-          onChange={setFocusOnly}
-        />
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span
+            style={{ cursor: 'pointer', fontSize: 11, color: '#4b7cf3' }}
+            onClick={handleExpandAll}
+            title={t('Expand all')}
+          >
+            {t('Expand')}
+          </span>
+          <span style={{ color: '#d1d5db' }}>|</span>
+          <span
+            style={{ cursor: 'pointer', fontSize: 11, color: '#4b7cf3' }}
+            onClick={handleCollapseAll}
+            title={t('Collapse all')}
+          >
+            {t('Collapse')}
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontSize: 11 }}>{t('Selected only')}</span>
+          <Switch
+            size='small'
+            checked={focusOnly}
+            onChange={setFocusOnly}
+          />
+        </div>
       </div>
       <BlockTree<IBlockDataWithId>
         selectedKeys={selectedKeys}
         expandedKeys={expandedKeys}
+        forceExpandedKeys={forceExpandedKeys}
         defaultExpandAll
         treeData={treeData}
         renderTitle={renderTitle}
