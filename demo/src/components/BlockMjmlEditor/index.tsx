@@ -67,6 +67,7 @@ export function BlockMjmlEditor() {
   const [mjmlText, setMjmlText] = useState('');
   const editorRef = useRef<any>(null);
   const applyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const userEditingRef = useRef(false); // suppress sync-back while user is typing
 
   // Build breadcrumb trail from page root to current block
   const breadcrumbs = useMemo(() => {
@@ -83,8 +84,25 @@ export function BlockMjmlEditor() {
     return crumbs;
   }, [focusIdx, values]);
 
-  // Re-generate MJML when the focused block changes
+  // Re-generate MJML when the focused block changes — but NOT while user is typing
+  const prevFocusIdxRef = useRef(focusIdx);
   useEffect(() => {
+    // Always sync when switching to a different block
+    if (focusIdx !== prevFocusIdxRef.current) {
+      // If leaving with invalid MJML, warn
+      if (!mjmlValid && userEditingRef.current) {
+        if (!window.confirm('Your MJML changes are invalid and will be lost. Continue?')) {
+          setFocusIdx(prevFocusIdxRef.current);
+          return;
+        }
+      }
+      userEditingRef.current = false;
+      prevFocusIdxRef.current = focusIdx;
+    }
+
+    // Don't overwrite the editor while the user is actively editing
+    if (userEditingRef.current) return;
+
     setMjmlValid(true);
     if (focusBlock) {
       const generated = JsonToMjml({
@@ -124,6 +142,7 @@ export function BlockMjmlEditor() {
         return;
       }
       setMjmlValid(true);
+      userEditingRef.current = false;
       setValueByIdx(focusIdx, parseValue);
     } catch (error) {
       setMjmlValid(false);
@@ -133,6 +152,7 @@ export function BlockMjmlEditor() {
 
   // Handle code changes — short debounce, silent validation
   const handleChange = useCallback((_editor: any, _data: any, value: string) => {
+    userEditingRef.current = true;
     setMjmlText(value);
     if (applyTimerRef.current) clearTimeout(applyTimerRef.current);
     applyTimerRef.current = setTimeout(() => applyMjml(value, true), 300);
