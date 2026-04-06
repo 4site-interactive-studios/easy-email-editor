@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Frame from '@demo/components/Frame';
-import { Key, Trash2, Check, ExternalLink, Settings2 } from 'lucide-react';
+import { Key, Trash2, Check, ExternalLink, Settings2, Plus, ArrowRightLeft } from 'lucide-react';
 import { api } from '@demo/utils/api';
-import { useAppSettings, DEFAULT_SPACER_COLOR } from '@demo/hooks/useAppSettings';
+import { useAppSettings, DEFAULT_SPACER_COLOR, ExportFindReplaceRule } from '@demo/hooks/useAppSettings';
 
 /** Convert "r, g, b" string to "#rrggbb" hex */
 function rgbToHex(rgb: string): string {
@@ -212,6 +212,110 @@ export default function Settings() {
               )}
             </label>
 
+          </div>
+        </div>
+
+        {/* ── Export Find & Replace ── */}
+        <div className='mt-10 pt-8 border-t border-gray-200'>
+          <h3 className='text-base font-semibold text-gray-900 mb-1 flex items-center gap-2'>
+            <ArrowRightLeft size={18} />
+            Export Find &amp; Replace
+          </h3>
+          <p className='text-sm text-gray-500 mb-4'>
+            String replacements applied when exporting HTML or MJML. Useful for swapping
+            placeholder URLs, tracking parameters, or rewriting domains on export.
+          </p>
+
+          <div className='space-y-3'>
+            {(appSettings.exportFindReplace || []).map((rule, i) => (
+              <div key={i} className='flex items-start gap-2 p-3 bg-gray-50 border border-gray-200 rounded-md'>
+                <div className='flex-1 min-w-0 space-y-2'>
+                  <div className='flex gap-2'>
+                    <div className='flex-1'>
+                      <label className='block text-xs font-medium text-gray-500 mb-0.5'>Find</label>
+                      <input
+                        type='text'
+                        className='form-input w-full text-sm border border-gray-300 rounded px-2 py-1.5 font-mono focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none'
+                        value={rule.find}
+                        placeholder='String to find...'
+                        onChange={e => {
+                          const rules = [...(appSettings.exportFindReplace || [])];
+                          rules[i] = { ...rules[i], find: e.target.value };
+                          updateAppSettings({ exportFindReplace: rules });
+                        }}
+                      />
+                    </div>
+                    <div className='flex-1'>
+                      <label className='block text-xs font-medium text-gray-500 mb-0.5'>Replace with</label>
+                      <input
+                        type='text'
+                        className='form-input w-full text-sm border border-gray-300 rounded px-2 py-1.5 font-mono focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none'
+                        value={rule.replace}
+                        placeholder='Replacement...'
+                        onChange={e => {
+                          const rules = [...(appSettings.exportFindReplace || [])];
+                          rules[i] = { ...rules[i], replace: e.target.value };
+                          updateAppSettings({ exportFindReplace: rules });
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div className='flex items-center gap-4'>
+                    <div className='flex items-center gap-2'>
+                      <label className='text-xs text-gray-500'>Apply to:</label>
+                      <select
+                        className='text-xs border border-gray-300 rounded px-1.5 py-1 bg-white focus:ring-2 focus:ring-blue-500 outline-none'
+                        value={rule.applyTo}
+                        onChange={e => {
+                          const rules = [...(appSettings.exportFindReplace || [])];
+                          rules[i] = { ...rules[i], applyTo: e.target.value as 'html' | 'mjml' | 'both' };
+                          updateAppSettings({ exportFindReplace: rules });
+                        }}
+                      >
+                        <option value='both'>Both</option>
+                        <option value='html'>HTML only</option>
+                        <option value='mjml'>MJML only</option>
+                      </select>
+                    </div>
+                    <label className='flex items-center gap-1.5 cursor-pointer select-none'>
+                      <input
+                        type='checkbox'
+                        className='rounded border-gray-300 text-blue-600 focus:ring-blue-500'
+                        checked={!!rule.useRegex}
+                        onChange={e => {
+                          const rules = [...(appSettings.exportFindReplace || [])];
+                          rules[i] = { ...rules[i], useRegex: e.target.checked };
+                          updateAppSettings({ exportFindReplace: rules });
+                        }}
+                      />
+                      <span className='text-xs text-gray-500'>Regex</span>
+                    </label>
+                  </div>
+                </div>
+                <button
+                  className='p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors mt-4'
+                  onClick={() => {
+                    const rules = [...(appSettings.exportFindReplace || [])];
+                    rules.splice(i, 1);
+                    updateAppSettings({ exportFindReplace: rules });
+                  }}
+                  title='Remove rule'
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+
+            <button
+              className='inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors'
+              onClick={() => {
+                const rules = [...(appSettings.exportFindReplace || []), { find: '', replace: '', applyTo: 'both' as const }];
+                updateAppSettings({ exportFindReplace: rules });
+              }}
+            >
+              <Plus size={14} />
+              Add rule
+            </button>
           </div>
         </div>
       </div>

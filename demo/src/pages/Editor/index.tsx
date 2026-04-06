@@ -9,7 +9,7 @@ import { Dialog, Transition, Menu as HMenu } from '@headlessui/react';
 import {
   Home, Download, Copy, ChevronDown, Wand2, Loader2,
   AlertTriangle, CheckCircle, X, History, RotateCcw, Check,
-  Code, Eye, FileCode, StickyNote, LayoutTemplate,
+  Code, Eye, FileCode, StickyNote, LayoutTemplate, Monitor, Smartphone,
 } from 'lucide-react';
 import { useQuery } from '@demo/hooks/useQuery';
 import { useHistory, Prompt } from 'react-router-dom';
@@ -30,7 +30,7 @@ import { getUserIdentity } from '@demo/utils/user-identity';
 import { RemoteCursors } from '@demo/components/RemoteCursors';
 import { BlockInsertButtons } from '@demo/components/BlockInsertButtons';
 import { BlockMjmlEditor } from '@demo/components/BlockMjmlEditor';
-import { getAppSettings, useAppSettings } from '@demo/hooks/useAppSettings';
+import { getAppSettings, useAppSettings, applyExportFindReplace } from '@demo/hooks/useAppSettings';
 
 import {
   EmailEditor,
@@ -327,6 +327,10 @@ export default function Editor() {
 
   // Code mode: 'visual' | 'code' | 'block'
   const [codeMode, setCodeMode] = useState(false);
+  const [previewMode, setPreviewMode] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState('');
+  const [previewWidth, setPreviewWidth] = useState<'desktop' | 'mobile'>('desktop');
+  const previewIframeRef = useRef<HTMLIFrameElement>(null);
   const [blockCodeMode, setBlockCodeMode] = useState(false);
   const [blockCodeFocusIdx, setBlockCodeFocusIdx] = useState('');
   const [blockCodeBlockType, setBlockCodeBlockType] = useState('');
@@ -625,7 +629,22 @@ export default function Editor() {
     const values = formApiRef.current.getState().values;
     const mjml = (await import('mjml-browser')).default;
     const mjmlStr = JsonToMjml({ data: values.content, mode: 'production', context: values.content });
-    return mjml(mjmlStr, { validationLevel: 'skip' }).html;
+    let html = mjml(mjmlStr, { validationLevel: 'skip' }).html;
+    html = applyExportFindReplace(html, 'html');
+    return html;
+  }, []);
+
+  const enterPreviewMode = useCallback(async () => {
+    const html = await compileToHtml();
+    if (html) {
+      setPreviewHtml(html);
+      setPreviewMode(true);
+    }
+  }, [compileToHtml]);
+
+  const exitPreviewMode = useCallback(() => {
+    setPreviewMode(false);
+    setPreviewHtml('');
   }, []);
 
   const handleExportHtml = useCallback(async () => {
@@ -773,6 +792,7 @@ export default function Editor() {
         : '';
     if (!mjml) return;
     mjml = cleanMjmlForDisplay(mjml, getAppSettings().hideEditorMetadata);
+    mjml = applyExportFindReplace(mjml, 'mjml');
     const subject = formApiRef.current?.getState().values.subject || 'email';
     downloadFile(mjml, `${subject}.mjml`, 'text/xml');
   }, [codeMode]);
@@ -1097,15 +1117,14 @@ export default function Editor() {
                     {/* History */}
                     {savedArticleId && (
                       <button
-                        className='inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors'
+                        className='inline-flex items-center justify-center w-8 h-8 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors'
                         onClick={() => {
                           api.getRevisions(savedArticleId).then(setRevisions);
                           setShowHistory(true);
                         }}
                         title='Revision history'
                       >
-                        <History size={14} />
-                        History
+                        <History size={16} />
                       </button>
                     )}
 
@@ -1149,9 +1168,12 @@ export default function Editor() {
                     <div className='inline-flex rounded-md border border-gray-300 overflow-hidden'>
                       <button
                         className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium transition-colors ${
-                          !codeMode ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
+                          !codeMode && !previewMode ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
                         }`}
-                        onClick={() => codeMode && exitCodeMode()}
+                        onClick={() => {
+                          if (codeMode) exitCodeMode();
+                          if (previewMode) exitPreviewMode();
+                        }}
                         title='Visual editor'
                       >
                         <Eye size={14} />
@@ -1159,9 +1181,25 @@ export default function Editor() {
                       </button>
                       <button
                         className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium border-l border-gray-300 transition-colors ${
+                          previewMode ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
+                        }`}
+                        onClick={() => {
+                          if (codeMode) exitCodeMode();
+                          if (!previewMode) enterPreviewMode();
+                        }}
+                        title='HTML preview'
+                      >
+                        <Monitor size={14} />
+                        Preview
+                      </button>
+                      <button
+                        className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium border-l border-gray-300 transition-colors ${
                           codeMode ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
                         }`}
-                        onClick={() => !codeMode && enterCodeMode()}
+                        onClick={() => {
+                          if (previewMode) exitPreviewMode();
+                          if (!codeMode) enterCodeMode();
+                        }}
                         title='Full MJML code editor'
                       >
                         <Code size={14} />
@@ -1198,26 +1236,129 @@ export default function Editor() {
                     height='calc(100vh - 52px)'
                   />
                 ) : (
-                  <div ref={editorContainerRef as any} style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
-                    <SimpleLayout showSourceCode={false} showBlockLayer blockMjmlPanel={<BlockMjmlEditor />}>
-                      <EmailEditor />
-                    </SimpleLayout>
-                    {multiUserEnabled && (
-                      <RemoteCursors
-                        remoteCursors={collab.remoteCursors}
-                        lockedBlocks={collab.lockedBlocks}
-                        remoteMousePositions={collab.remoteMousePositions}
-                        remoteTextCursors={collab.remoteTextCursors}
-                        currentUserId={collab.currentUser.userId}
-                        roomUsers={collab.roomUsers}
-                        showCursors={showCursors}
-                        onToggleCursors={() => setShowCursors(v => !v)}
-                        editorContainerRef={editorContainerRef as any}
-                        onMouseMove={(x, y) => collab.sendMousePosition(x, y)}
-                      />
+                  <>
+                    {/* Preview overlay — rendered on top, visual editor stays mounted underneath */}
+                    {previewMode && (
+                      <div style={{ position: 'fixed', top: 52, left: 0, right: 0, bottom: 0, zIndex: 50, display: 'flex', flexDirection: 'column', background: '#f5f5f5' }}>
+                        <div style={{
+                          padding: '6px 12px',
+                          background: '#fff',
+                          borderBottom: '1px solid #e5e7eb',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          flexShrink: 0,
+                        }}>
+                          <button
+                            onClick={exitPreviewMode}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              padding: '4px 10px',
+                              border: '1px solid #d1d5db',
+                              borderRadius: 4,
+                              background: '#fff',
+                              color: '#374151',
+                              cursor: 'pointer',
+                              fontSize: 12,
+                              fontWeight: 500,
+                            }}
+                            title='Back to visual editor'
+                          >
+                            <Eye size={14} />
+                            Back to editor
+                          </button>
+                          <div style={{ display: 'flex', borderRadius: 4, border: '1px solid #d1d5db', overflow: 'hidden' }}>
+                            <button
+                              onClick={() => setPreviewWidth('desktop')}
+                              title='Desktop width'
+                              style={{
+                                padding: '4px 8px',
+                                border: 'none',
+                                background: previewWidth === 'desktop' ? '#eff6ff' : '#fff',
+                                color: previewWidth === 'desktop' ? '#3b82f6' : '#6b7280',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                fontSize: 12,
+                                fontWeight: 500,
+                              }}
+                            >
+                              <Monitor size={14} />
+                              Desktop
+                            </button>
+                            <button
+                              onClick={() => setPreviewWidth('mobile')}
+                              title='Mobile width (375px)'
+                              style={{
+                                padding: '4px 8px',
+                                border: 'none',
+                                borderLeft: '1px solid #d1d5db',
+                                background: previewWidth === 'mobile' ? '#eff6ff' : '#fff',
+                                color: previewWidth === 'mobile' ? '#3b82f6' : '#6b7280',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                fontSize: 12,
+                                fontWeight: 500,
+                              }}
+                            >
+                              <Smartphone size={14} />
+                              Mobile
+                            </button>
+                          </div>
+                          {/* Spacer to balance the layout */}
+                          <div style={{ width: 120 }} />
+                        </div>
+                        <div style={{
+                          flex: 1,
+                          overflow: 'auto',
+                          display: 'flex',
+                          justifyContent: 'center',
+                          padding: previewWidth === 'mobile' ? '16px 0' : 0,
+                        }}>
+                          <iframe
+                            ref={previewIframeRef}
+                            srcDoc={previewHtml}
+                            style={{
+                              width: previewWidth === 'mobile' ? 375 : '100%',
+                              maxWidth: '100%',
+                              height: '100%',
+                              border: 'none',
+                              background: '#fff',
+                              boxShadow: previewWidth === 'mobile' ? '0 0 24px rgba(0,0,0,0.1)' : 'none',
+                            }}
+                            sandbox='allow-same-origin'
+                            title='Email Preview'
+                          />
+                        </div>
+                      </div>
                     )}
-                    <BlockInsertButtons containerRef={editorContainerRef as React.RefObject<HTMLElement>} />
-                  </div>
+                    {/* Visual editor — always mounted, hidden behind preview when active */}
+                    <div ref={editorContainerRef as any} style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
+                      <SimpleLayout showBlockLayer blockMjmlPanel={<BlockMjmlEditor />}>
+                        <EmailEditor />
+                      </SimpleLayout>
+                      {multiUserEnabled && (
+                        <RemoteCursors
+                          remoteCursors={collab.remoteCursors}
+                          lockedBlocks={collab.lockedBlocks}
+                          remoteMousePositions={collab.remoteMousePositions}
+                          remoteTextCursors={collab.remoteTextCursors}
+                          currentUserId={collab.currentUser.userId}
+                          roomUsers={collab.roomUsers}
+                          showCursors={showCursors}
+                          onToggleCursors={() => setShowCursors(v => !v)}
+                          editorContainerRef={editorContainerRef as any}
+                          onMouseMove={(x, y) => collab.sendMousePosition(x, y)}
+                        />
+                      )}
+                      <BlockInsertButtons containerRef={editorContainerRef as React.RefObject<HTMLElement>} />
+                    </div>
+                  </>
                 )}
               </>
             );

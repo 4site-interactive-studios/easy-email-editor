@@ -69,3 +69,20 @@
     -webkit-box-shadow: 0 0 1px rgba(255, 255, 255, 0.5);
   }
 }
+
+// Flush tab buttons together with no gap
+.layoutTabs {
+  :global {
+    .arco-tabs-header-nav-line .arco-tabs-header-title {
+      margin: 0 !important;
+      padding: 8px 12px;
+    }
+    .arco-tabs-header-nav-line .arco-tabs-header-scroll .arco-tabs-header-title:first-of-type {
+      margin-left: 0 !important;
+    }
+    // Hide the 1px vertical dividers between tab titles
+    .arco-tabs-header-title + div:not([class]) {
+      display: none !important;
+    }
+  }
+}

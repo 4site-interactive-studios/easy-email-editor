@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import {
+  BasicType,
   BlockManager,
   getParentIdx,
   getChildIdx,
@@ -37,7 +38,7 @@ export function BreadcrumbBar() {
     let idx: string | undefined = focusIdx;
     while (idx) {
       const block = get(values, idx);
-      if (block) {
+      if (block && block.type !== BasicType.PAGE) {
         crumbs.unshift({ idx, name: getBlockDisplayName(block) });
       }
       idx = getParentIdx(idx);

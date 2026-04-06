@@ -2,7 +2,6 @@ import { Button, Card, ConfigProvider, Layout, Tabs } from '@arco-design/web-rea
 import { useEditorProps, useFocusIdx } from 'easy-email-editor';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useWindowSize } from 'react-use';
-import { SourceCodePanel } from '../SourceCodePanel';
 import { BlockMjmlPanel } from '../BlockMjmlPanel';
 import { AttributePanel } from '../AttributePanel';
 import { BreadcrumbBar } from '../BreadcrumbBar';
@@ -123,9 +122,6 @@ const LAYOUT_COL_DEFAULT = 220;
 
 export const SimpleLayout: React.FC<
   {
-    showSourceCode?: boolean;
-    jsonReadOnly?: boolean;
-    mjmlReadOnly?: boolean;
     defaultShowLayer?: boolean;
     showBlockLayer?: boolean;
     blockMjmlPanel?: React.ReactNode;
@@ -133,7 +129,6 @@ export const SimpleLayout: React.FC<
   } & BlockLayerProps
 > = props => {
   const { height: containerHeight } = useEditorProps();
-  const { showSourceCode = true, jsonReadOnly = false, mjmlReadOnly = true } = props;
   const { width: viewportWidth } = useWindowSize();
   const isNarrow = viewportWidth < 1280;
 
@@ -142,6 +137,8 @@ export const SimpleLayout: React.FC<
   const [sidebarWidth, setSidebarWidth] = useState(isNarrow ? SIDEBAR_MIN : SIDEBAR_DEFAULT);
   const [showLayoutColumn, setShowLayoutColumn] = useState(false);
   const [layoutColumnWidth, setLayoutColumnWidth] = useState(LAYOUT_COL_DEFAULT);
+
+  const [autoCollapse, setAutoCollapse] = useState(true);
 
   // Auto-expand sidebar when a different block is focused
   const { focusIdx } = useFocusIdx();
@@ -205,9 +202,35 @@ export const SimpleLayout: React.FC<
                   style={{ border: 'none' }}
                   headerStyle={{ height: 40, padding: '0 8px' }}
                   bodyStyle={{ padding: 0 }}
-                  extra={null}
+                  extra={
+                    <label
+                      style={{ display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer', fontSize: 10, color: '#6b7280' }}
+                      title={autoCollapse ? t('Auto-collapse is on — unfocused sections collapse') : t('Auto-collapse is off — all sections stay expanded')}
+                    >
+                      <div style={{ position: 'relative', width: 24, height: 14 }}>
+                        <input
+                          type='checkbox'
+                          checked={autoCollapse}
+                          onChange={e => setAutoCollapse(e.target.checked)}
+                          style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
+                        />
+                        <div style={{
+                          width: 24, height: 14, borderRadius: 7,
+                          background: autoCollapse ? '#3b82f6' : '#d1d5db',
+                          transition: 'background 0.15s',
+                        }} />
+                        <div style={{
+                          position: 'absolute', top: 2, left: autoCollapse ? 12 : 2,
+                          width: 10, height: 10, borderRadius: '50%',
+                          background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+                          transition: 'left 0.15s',
+                        }} />
+                      </div>
+                      <span style={{ userSelect: 'none', whiteSpace: 'nowrap' }}>{t('Focus')}</span>
+                    </label>
+                  }
                 >
-                  <BlockLayer renderTitle={props.renderTitle} />
+                  <BlockLayer renderTitle={props.renderTitle} autoCollapse={autoCollapse} />
                 </Card>
               </div>
             )}
@@ -298,19 +321,6 @@ export const SimpleLayout: React.FC<
                   >
                     {props.blockMjmlPanel || <BlockMjmlPanel />}
                   </Tabs.TabPane>
-                  {showSourceCode && (
-                    <Tabs.TabPane
-                      destroyOnHide
-                      key='Source code'
-                      title={
-                        <div style={{ height: 31, lineHeight: '31px' }}>
-                          {t('Source code')}
-                        </div>
-                      }
-                    >
-                      <SourceCodePanel jsonReadOnly={jsonReadOnly} mjmlReadOnly={mjmlReadOnly} />
-                    </Tabs.TabPane>
-                  )}
                 </Tabs>
               </Card>
             </div>

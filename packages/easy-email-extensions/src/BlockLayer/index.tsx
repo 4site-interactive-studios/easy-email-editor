@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DATA_ATTRIBUTE_DROP_CONTAINER,
   IconFont,
@@ -44,6 +44,7 @@ export interface IBlockDataWithId extends IBlockData {
 }
 export interface BlockLayerProps {
   renderTitle?: (block: IBlockDataWithId) => React.ReactNode;
+  autoCollapse?: boolean;
 }
 
 export function BlockLayer(props: BlockLayerProps) {
@@ -164,7 +165,8 @@ export function BlockLayer(props: BlockLayerProps) {
 
     loop(copyData, getPageIdx(), null);
 
-    return [copyData];
+    // Skip the Page root — start from its children (sections, wrappers, etc.)
+    return copyData.children as IBlockDataWithId[];
   }, [pageData]);
 
   const treeData = fullTreeData;
@@ -284,7 +286,7 @@ export function BlockLayer(props: BlockLayerProps) {
     return [focusIdx];
   }, [focusIdx]);
 
-  const expandedKeys = useMemo(() => {
+  const focusAncestorKeys = useMemo(() => {
     if (!focusIdx) return [];
     // Include the focused node itself (to expand its children)
     // plus all ancestors up to the root
@@ -296,6 +298,20 @@ export function BlockLayer(props: BlockLayerProps) {
     }
     return keys;
   }, [focusIdx]);
+
+  // When autoCollapse is on, force-set expanded keys to only the focused path
+  const prevFocusIdxRef = useRef(focusIdx);
+  useEffect(() => {
+    if (!props.autoCollapse) return;
+    if (focusIdx !== prevFocusIdxRef.current) {
+      prevFocusIdxRef.current = focusIdx;
+      setForceExpandedKeys(focusAncestorKeys);
+      // Clear force after tree has applied them, so manual expand/collapse still works
+      setTimeout(() => setForceExpandedKeys(null), 50);
+    }
+  }, [focusIdx, props.autoCollapse, focusAncestorKeys]);
+
+  const expandedKeys = focusAncestorKeys;
 
   // Scroll the focused tree node into view (centered) within the sidebar.
   // Retry a few times because the tree needs to expand nodes first.

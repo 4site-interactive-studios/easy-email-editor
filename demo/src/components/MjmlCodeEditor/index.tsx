@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Controlled as CodeMirror } from 'react-codemirror2';
-import { WrapText, Monitor, Smartphone } from 'lucide-react';
+import { WrapText, Monitor, Smartphone, Maximize2, Minimize2 } from 'lucide-react';
 
 // CodeMirror core
 import 'codemirror/lib/codemirror.css';
@@ -203,7 +203,8 @@ export function MjmlCodeEditor({ mjmlString, onMjmlChange, height }: MjmlCodeEdi
   const editorRef = useRef<any>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [splitPos, setSplitPos] = useState(50);
-  const [lineWrap, setLineWrap] = useState(true);
+  const [lineWrap, setLineWrap] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const [previewWidth, setPreviewWidth] = useState<'desktop' | 'mobile'>('desktop');
 
   // Sync incoming mjmlString when it changes (e.g., entering code mode)
@@ -280,6 +281,35 @@ export function MjmlCodeEditor({ mjmlString, onMjmlChange, height }: MjmlCodeEdi
     });
   }, []);
 
+  // Toggle fullscreen
+  const toggleFullscreen = useCallback(() => {
+    setFullscreen(f => !f);
+    setTimeout(() => {
+      if (editorRef.current) {
+        const cm = editorRef.current.editor || editorRef.current;
+        if (cm?.refresh) cm.refresh();
+      }
+    }, 50);
+  }, []);
+
+  // Escape exits fullscreen
+  useEffect(() => {
+    if (!fullscreen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setFullscreen(false);
+        setTimeout(() => {
+          if (editorRef.current) {
+            const cm = editorRef.current.editor || editorRef.current;
+            if (cm?.refresh) cm.refresh();
+          }
+        }, 50);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [fullscreen]);
+
   // Splitter drag
   const handleSplitterMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -307,7 +337,12 @@ export function MjmlCodeEditor({ mjmlString, onMjmlChange, height }: MjmlCodeEdi
   }, [splitPos]);
 
   return (
-    <div style={{ height, display: 'flex', flexDirection: 'column' }}>
+    <div style={{
+      height: fullscreen ? '100vh' : height,
+      display: 'flex',
+      flexDirection: 'column',
+      ...(fullscreen ? { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 } : {}),
+    }}>
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
         {/* Code editor panel */}
         <div
@@ -324,31 +359,52 @@ export function MjmlCodeEditor({ mjmlString, onMjmlChange, height }: MjmlCodeEdi
               height: 100% !important;
             }
           `}</style>
-          {/* Wrap toggle */}
-          <button
-            onClick={toggleLineWrap}
-            title={lineWrap ? 'Disable line wrapping' : 'Enable line wrapping'}
-            style={{
-              position: 'absolute',
-              top: 8,
-              right: 12,
-              zIndex: 10,
-              background: lineWrap ? 'rgba(255,255,255,0.15)' : 'transparent',
-              border: '1px solid rgba(255,255,255,0.2)',
-              borderRadius: 4,
-              padding: '3px 6px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              color: 'rgba(255,255,255,0.7)',
-              fontSize: 11,
-              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-            }}
-          >
-            <WrapText size={12} />
-            Wrap
-          </button>
+          {/* Toolbar: Wrap + Fullscreen */}
+          <div style={{
+            position: 'absolute',
+            top: 8,
+            right: 12,
+            zIndex: 10,
+            display: 'flex',
+            gap: 4,
+          }}>
+            <button
+              onClick={toggleLineWrap}
+              title={lineWrap ? 'Disable line wrapping' : 'Enable line wrapping'}
+              style={{
+                background: lineWrap ? 'rgba(255,255,255,0.15)' : 'transparent',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 4,
+                padding: '3px 6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                color: 'rgba(255,255,255,0.7)',
+                fontSize: 11,
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+              }}
+            >
+              <WrapText size={12} />
+              Wrap
+            </button>
+            <button
+              onClick={toggleFullscreen}
+              title={fullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
+              style={{
+                background: fullscreen ? 'rgba(255,255,255,0.15)' : 'transparent',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 4,
+                padding: '3px 6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                color: 'rgba(255,255,255,0.7)',
+              }}
+            >
+              {fullscreen ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+            </button>
+          </div>
 
           <CodeMirror
             ref={(ref: any) => { editorRef.current = ref; }}
