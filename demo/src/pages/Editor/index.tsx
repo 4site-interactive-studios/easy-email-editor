@@ -927,8 +927,8 @@ export default function Editor() {
               }, 300);
             }
 
-            // ── Autosave to database (2s debounce) ──
-            if (savedArticleId && contentJson !== lastSavedContentRef.current && contentJson !== lastScheduledContentRef.current) {
+            // ── Autosave to database (2s debounce) — only when enabled ──
+            if (getAppSettings().autoSaveEnabled && savedArticleId && contentJson !== lastSavedContentRef.current && contentJson !== lastScheduledContentRef.current) {
               lastScheduledContentRef.current = contentJson;
               if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
               autosaveTimerRef.current = setTimeout(() => {
@@ -1028,7 +1028,16 @@ export default function Editor() {
                           {saveError ? (
                             <><AlertTriangle size={14} /> Save failed</>
                           ) : hasUnsavedChanges ? (
-                            <><span className='text-gray-300'>●</span> Unsaved changes</>
+                            !getAppSettings().autoSaveEnabled ? (
+                              <button
+                                className='px-3 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors'
+                                onClick={handleSave}
+                              >
+                                Save
+                              </button>
+                            ) : (
+                              <><span className='text-gray-300'>●</span> Saving...</>
+                            )
                           ) : (
                             <><Check size={14} /> Saved</>
                           )}
@@ -1039,6 +1048,33 @@ export default function Editor() {
                       </span>
                       );
                     })()}
+
+                    {/* Auto-save toggle */}
+                    {savedArticleId && (
+                      <label className='inline-flex items-center gap-1.5 cursor-pointer select-none' title={getAppSettings().autoSaveEnabled ? 'Auto-save is on' : 'Auto-save is off'}>
+                        <div className='relative'>
+                          <input
+                            type='checkbox'
+                            className='sr-only peer'
+                            checked={getAppSettings().autoSaveEnabled}
+                            onChange={e => {
+                              const { useAppSettings: _, ...rest } = getAppSettings() as any;
+                              const newSettings = { ...getAppSettings(), autoSaveEnabled: e.target.checked };
+                              localStorage.setItem('easy-email-app-settings', JSON.stringify(newSettings));
+                              // Force re-render by updating editor key
+                              setEditorKey(k => k);
+                              // Trigger immediate save if enabling and there are unsaved changes
+                              if (e.target.checked && contentJson !== lastSavedContentRef.current && formApiRef.current) {
+                                autosave(savedArticleId, formApiRef.current.getState().values);
+                              }
+                            }}
+                          />
+                          <div className='w-7 h-4 bg-gray-300 rounded-full peer-checked:bg-green-500 transition-colors' />
+                          <div className='absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform peer-checked:translate-x-3' />
+                        </div>
+                        <span className='text-xs text-gray-500'>Auto</span>
+                      </label>
+                    )}
 
                     {/* Validation */}
                     <button

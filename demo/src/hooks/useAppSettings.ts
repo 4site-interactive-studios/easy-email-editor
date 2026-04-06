@@ -10,6 +10,7 @@ export interface AppSettings {
   showSpacerIndicator: boolean;
   spacerIndicatorColor: string;
   hoverExpandSidebars: boolean;
+  autoSaveEnabled: boolean;
 }
 
 const DEFAULT_SPACER_COLOR = '147, 197, 253';
@@ -22,6 +23,7 @@ const defaults: AppSettings = {
   showSpacerIndicator: true,
   spacerIndicatorColor: DEFAULT_SPACER_COLOR,
   hoverExpandSidebars: true,
+  autoSaveEnabled: true,
 };
 
 export { DEFAULT_SPACER_COLOR };
