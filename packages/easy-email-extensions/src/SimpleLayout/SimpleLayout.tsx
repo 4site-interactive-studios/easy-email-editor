@@ -98,6 +98,7 @@ export const SimpleLayout: React.FC<
     mjmlReadOnly?: boolean;
     defaultShowLayer?: boolean;
     showBlockLayer?: boolean;
+    hoverExpandSidebars?: boolean;
     blockMjmlPanel?: React.ReactNode;
     children: React.ReactNode | React.ReactElement;
   } & BlockLayerProps
@@ -105,6 +106,7 @@ export const SimpleLayout: React.FC<
   const { height: containerHeight } = useEditorProps();
   const { showSourceCode = true, defaultShowLayer = true, jsonReadOnly = false, mjmlReadOnly = true } = props;
   const showBlockLayer = props.showBlockLayer ?? false;
+  const hoverExpand = props.hoverExpandSidebars ?? false;
   const { width: viewportWidth } = useWindowSize();
   const isNarrow = viewportWidth < 1280;
 
@@ -113,6 +115,8 @@ export const SimpleLayout: React.FC<
   const [leftHidden, setLeftHidden] = useState(!showBlockLayer);
   const [leftPeeking, setLeftPeeking] = useState(false);
   const leftPeekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rightHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const leftCollapseHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [rightCollapsed, setRightCollapsed] = useState(() => isNarrow);
   const [leftWidth, setLeftWidth] = useState(LEFT_DEFAULT);
   const [rightWidth, setRightWidth] = useState(RIGHT_DEFAULT);
@@ -209,6 +213,14 @@ export const SimpleLayout: React.FC<
                 cursor: 'pointer',
               }}
               onClick={() => setLayoutManuallyCollapsed(false)}
+              onMouseEnter={() => {
+                if (hoverExpand) {
+                  leftCollapseHoverTimerRef.current = setTimeout(() => setLayoutManuallyCollapsed(false), 500);
+                }
+              }}
+              onMouseLeave={() => {
+                if (leftCollapseHoverTimerRef.current) { clearTimeout(leftCollapseHoverTimerRef.current); leftCollapseHoverTimerRef.current = null; }
+              }}
               title={t('Show layout panel')}
             >
               <div style={{
@@ -317,6 +329,14 @@ export const SimpleLayout: React.FC<
                 cursor: 'pointer',
               }}
               onClick={() => setRightCollapsed(false)}
+              onMouseEnter={() => {
+                if (hoverExpand) {
+                  rightHoverTimerRef.current = setTimeout(() => setRightCollapsed(false), 500);
+                }
+              }}
+              onMouseLeave={() => {
+                if (rightHoverTimerRef.current) { clearTimeout(rightHoverTimerRef.current); rightHoverTimerRef.current = null; }
+              }}
               title={t('Show configuration panel')}
             >
               <div style={{

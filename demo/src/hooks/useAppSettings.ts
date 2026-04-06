@@ -9,6 +9,7 @@ export interface AppSettings {
   hideEditorMetadata: boolean;
   showSpacerIndicator: boolean;
   spacerIndicatorColor: string;
+  hoverExpandSidebars: boolean;
 }
 
 const DEFAULT_SPACER_COLOR = '147, 197, 253';
@@ -20,6 +21,7 @@ const defaults: AppSettings = {
   hideEditorMetadata: false,
   showSpacerIndicator: true,
   spacerIndicatorColor: DEFAULT_SPACER_COLOR,
+  hoverExpandSidebars: true,
 };
 
 export { DEFAULT_SPACER_COLOR };
