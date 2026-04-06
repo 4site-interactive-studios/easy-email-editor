@@ -18,7 +18,7 @@ export function parseXMLtoBlock(text: string): IPage {
   const dom = domParser.parseFromString(text, 'text/xml');
   const root = dom.firstChild as Element;
 
-  if (!(dom.firstChild instanceof Element)) {
+  if (!(dom.firstChild instanceof Element) || dom.querySelector('parsererror')) {
     throw new Error('Invalid content');
   }
 
