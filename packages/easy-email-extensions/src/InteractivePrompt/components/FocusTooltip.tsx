@@ -111,42 +111,24 @@ export function FocusTooltip() {
             </div>
           )}
 
-          {/* Spacer resize handles — full-width top and bottom edges */}
+          {/* Spacer resize handle — full-width bottom edge */}
           {isSpacer && (
-            <>
-              <div
-                onMouseDown={handleResizeStart}
-                style={{
-                  position: 'absolute',
-                  zIndex: 9999,
-                  bottom: -3,
-                  left: 0,
-                  width: '100%',
-                  height: 6,
-                  cursor: 'ns-resize',
-                  pointerEvents: 'auto',
-                  background: 'var(--selected-color)',
-                  opacity: 0.5,
-                }}
-                title='Drag to resize spacer'
-              />
-              <div
-                onMouseDown={handleResizeStart}
-                style={{
-                  position: 'absolute',
-                  zIndex: 9999,
-                  top: -3,
-                  left: 0,
-                  width: '100%',
-                  height: 6,
-                  cursor: 'ns-resize',
-                  pointerEvents: 'auto',
-                  background: 'var(--selected-color)',
-                  opacity: 0.5,
-                }}
-                title='Drag to resize spacer'
-              />
-            </>
+            <div
+              onMouseDown={handleResizeStart}
+              style={{
+                position: 'absolute',
+                zIndex: 9999,
+                bottom: -3,
+                left: 0,
+                width: '100%',
+                height: 6,
+                cursor: 'ns-resize',
+                pointerEvents: 'auto',
+                background: 'var(--selected-color)',
+                opacity: 0.5,
+              }}
+              title='Drag to resize spacer'
+            />
           )}
 
           {/* outline */}
