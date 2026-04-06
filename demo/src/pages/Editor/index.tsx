@@ -333,8 +333,8 @@ export default function Editor() {
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const [codeMjml, setCodeMjml] = useState('');
   const codeMjmlRef = useRef('');
-  const codeOriginalMjmlRef = useRef(''); // MJML at time of entering code mode
   const codeOriginalContentRef = useRef<any>(null); // Block data at time of entering code mode
+  const codeUserEditedRef = useRef(false); // Whether user actually typed in code editor
   const [editorKey, setEditorKey] = useState(0);
   const [showCodeModeConfirm, setShowCodeModeConfirm] = useState(false);
 
@@ -374,8 +374,9 @@ export default function Editor() {
     });
     setCodeMjml(mjml);
     codeMjmlRef.current = mjml;
-    codeOriginalMjmlRef.current = mjml;
     codeOriginalContentRef.current = cloneDeep(values.content);
+    codeUserEditedRef.current = false;
+    codeInitialFormatDoneRef.current = false;
     setCodeMode(true);
   }, []);
 
@@ -662,8 +663,9 @@ export default function Editor() {
       });
       setCodeMjml(mjml);
       codeMjmlRef.current = mjml;
-      codeOriginalMjmlRef.current = mjml;
       codeOriginalContentRef.current = cloneDeep(values.content);
+      codeUserEditedRef.current = false;
+      codeInitialFormatDoneRef.current = false;
       setCodeMode(true);
     }
   }, [collab.roomUsers, collab.currentUser.userId]);
@@ -672,10 +674,10 @@ export default function Editor() {
     if (!formApiRef.current) return;
     const currentMjml = codeMjmlRef.current;
     try {
-      // If the user didn't change anything, restore the original block data
-      // exactly — no parsing needed, no defaults injected
+      // If the user didn't edit anything, restore the original block data
+      // exactly — no parsing needed, no defaults injected, zero changes
       let parsed;
-      if (currentMjml === codeOriginalMjmlRef.current && codeOriginalContentRef.current) {
+      if (!codeUserEditedRef.current && codeOriginalContentRef.current) {
         parsed = codeOriginalContentRef.current;
       } else {
         // User edited the MJML — use fidelity parser to avoid injecting defaults
@@ -705,7 +707,14 @@ export default function Editor() {
     }
   }, [savedArticleId, dispatch]);
 
+  const codeInitialFormatDoneRef = useRef(false);
   const handleCodeMjmlChange = useCallback((mjml: string) => {
+    if (!codeInitialFormatDoneRef.current) {
+      // First change is the MjmlCodeEditor formatting on mount — not a user edit
+      codeInitialFormatDoneRef.current = true;
+    } else {
+      codeUserEditedRef.current = true;
+    }
     codeMjmlRef.current = mjml;
   }, []);
 
