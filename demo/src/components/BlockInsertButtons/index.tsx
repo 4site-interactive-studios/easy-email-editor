@@ -160,12 +160,38 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
 
   const handleMoveUp = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    moveBlock(focusIdx, getSkipCommentSiblingIdx(focusIdx, -1, values));
+    // If this block has a preceding comment, move the comment first
+    const prevIdx = getSiblingIdx(focusIdx, -1);
+    const prevBlock = get(values, prevIdx);
+    if (prevBlock && isCommentBlock(prevBlock)) {
+      // Move comment to before where the block will land
+      const targetIdx = getSkipCommentSiblingIdx(focusIdx, -1, values);
+      moveBlock(prevIdx, targetIdx); // comment goes first
+      // After comment moved, our block shifted — move it too
+      setTimeout(() => moveBlock(focusIdx, getSiblingIdx(focusIdx, -1)), 0);
+    } else {
+      moveBlock(focusIdx, getSkipCommentSiblingIdx(focusIdx, -1, values));
+    }
   }, [focusIdx, moveBlock, values]);
 
   const handleMoveDown = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    moveBlock(focusIdx, getSkipCommentSiblingIdx(focusIdx, 1, values));
+    // If this block has a preceding comment, move both together
+    const prevIdx = getSiblingIdx(focusIdx, -1);
+    const prevBlock = get(values, prevIdx);
+    if (prevBlock && isCommentBlock(prevBlock)) {
+      // Move the block first, then the comment follows
+      const targetIdx = getSkipCommentSiblingIdx(focusIdx, 1, values);
+      moveBlock(focusIdx, targetIdx);
+      // After block moved, move the comment to just before block's new position
+      setTimeout(() => {
+        // The comment is now at prevIdx, the block moved to targetIdx
+        // We need to move the comment to just before the block
+        moveBlock(prevIdx, getSiblingIdx(prevIdx, 1));
+      }, 0);
+    } else {
+      moveBlock(focusIdx, getSkipCommentSiblingIdx(focusIdx, 1, values));
+    }
   }, [focusIdx, moveBlock, values]);
 
   const handleMoveUpAndOut = useCallback((e: React.MouseEvent) => {

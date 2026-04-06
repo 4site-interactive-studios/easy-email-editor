@@ -39,6 +39,8 @@ export interface IBlockDataWithId extends IBlockData {
   parent: IBlockDataWithId | null;
   children: IBlockDataWithId[];
   className?: string;
+  /** Comment text from a preceding comment-only mj-raw sibling */
+  commentLabel?: string;
 }
 export interface BlockLayerProps {
   renderTitle?: (block: IBlockDataWithId) => React.ReactNode;
@@ -77,46 +79,23 @@ export function BlockLayer(props: BlockLayerProps) {
     [setValueByIdx, valueRef],
   );
 
-  /**
-   * Get the preceding comment text for a block (if its previous sibling
-   * is a comment-only mj-raw block).
-   */
-  const getPrecedingCommentForBlock = useCallback((data: IBlockDataWithId): string => {
-    if (!data.parent) return '';
-    const siblings = data.parent.children;
-    const idx = siblings.indexOf(data);
-    if (idx > 0) {
-      const prev = siblings[idx - 1];
-      if (isCommentBlock(prev)) {
-        return getCommentText(prev);
-      }
-    }
-    return '';
-  }, []);
-
   const renderTitle = useCallback(
     (data: IBlockDataWithId) => {
       const isPage = data.type === BasicType.PAGE;
-      const isComment = isCommentBlock(data);
-      const commentText = isComment ? getCommentText(data) : '';
-      const precedingComment = !isComment ? getPrecedingCommentForBlock(data) : '';
+      const title = propsRenderTitle ? propsRenderTitle(data) : getBlockTitle(data);
+      const commentLabel = data.commentLabel || '';
 
-      const title = isComment
-        ? 'Code Comment'
-        : propsRenderTitle
-          ? propsRenderTitle(data)
-          : getBlockTitle(data);
+      // Build display: "Section: Intro text + CTA" when comment present
+      const displayTitle = commentLabel
+        ? `${isString(title) ? title : ''}: ${commentLabel}`
+        : title;
 
-      const fullTooltip = isComment
-        ? commentText
-        : precedingComment
-          ? `${isString(title) ? title : ''} — ${precedingComment}`
-          : (isString(title) ? title : '');
+      const tooltipText = isString(displayTitle) ? displayTitle : (isString(title) ? title : '');
 
       return (
         <div
           data-tree-idx={data.id}
-          data-tooltip={fullTooltip || undefined}
+          data-tooltip={tooltipText || undefined}
           className={classnames(
             styles.title,
             !isPage && getNodeIdxClassName(data.id),
@@ -128,53 +107,41 @@ export function BlockLayer(props: BlockLayerProps) {
             size='mini'
           >
             <IconFont
-              iconName={isComment ? 'icon-source-code' : getIconNameByBlockType(data.type)}
-              style={{
-                fontSize: 12,
-                color: isComment ? '#9ca3af' : '#999',
-              }}
+              iconName={getIconNameByBlockType(data.type)}
+              style={{ fontSize: 12, color: '#999' }}
             />
             <div
               style={{
                 overflow: 'hidden',
                 whiteSpace: 'nowrap',
-                width: precedingComment ? '8em' : '5em',
+                width: commentLabel ? '10em' : '5em',
                 textOverflow: 'ellipsis',
               }}
             >
-              {isComment ? (
-                <span style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>
-                  {commentText || 'Code Comment'}
+              <TextStyle size='smallest'>
+                {isString(title) ? title : title}
+              </TextStyle>
+              {commentLabel && (
+                <span style={{
+                  fontSize: 10,
+                  color: '#6b7280',
+                  marginLeft: 2,
+                }}>
+                  : {commentLabel}
                 </span>
-              ) : (
-                <>
-                  <TextStyle size='smallest'>{title}</TextStyle>
-                  {precedingComment && (
-                    <span style={{
-                      fontSize: 10,
-                      color: '#9ca3af',
-                      fontStyle: 'italic',
-                      marginLeft: 4,
-                    }}>
-                      {precedingComment}
-                    </span>
-                  )}
-                </>
               )}
             </div>
           </Space>
-          {!isComment && (
-            <div className={styles.eyeIcon}>
-              <EyeIcon
-                blockData={data}
-                onToggleVisible={onToggleVisible}
-              />
-            </div>
-          )}
+          <div className={styles.eyeIcon}>
+            <EyeIcon
+              blockData={data}
+              onToggleVisible={onToggleVisible}
+            />
+          </div>
         </div>
       );
     },
-    [onToggleVisible, propsRenderTitle, getPrecedingCommentForBlock],
+    [onToggleVisible, propsRenderTitle],
   );
 
   const fullTreeData = useMemo(() => {
@@ -186,7 +153,46 @@ export function BlockLayer(props: BlockLayerProps) {
     ) => {
       item.id = id;
       item.parent = parent;
-      item.children.map((child, index) => loop(child, getChildIdx(id, index), item));
+
+      // Filter out comment-only raw blocks from children,
+      // attaching their text as a label on the next sibling
+      const filteredChildren: IBlockDataWithId[] = [];
+      let pendingComment = '';
+
+      for (let i = 0; i < item.children.length; i++) {
+        const child = item.children[i] as IBlockDataWithId;
+        if (isCommentBlock(child)) {
+          pendingComment = getCommentText(child);
+        } else {
+          if (pendingComment) {
+            child.commentLabel = pendingComment;
+            pendingComment = '';
+          }
+          filteredChildren.push(child);
+        }
+      }
+
+      item.children = filteredChildren;
+
+      // Now assign IDs to the filtered children based on the ORIGINAL indices
+      // We need the real indices (not filtered) for correct focusIdx mapping
+      // So we rebuild: walk the original children to map filtered → original index
+      let originalIndex = 0;
+      for (let fi = 0; fi < item.children.length; fi++) {
+        const child = item.children[fi];
+        // Find this child's original index in pageData
+        // We need to skip comment blocks in the original array
+        const origChildren = (get(pageData, id) as IBlockData)?.children || [];
+        for (let oi = originalIndex; oi < origChildren.length; oi++) {
+          if (!isCommentBlock(origChildren[oi])) {
+            loop(child, getChildIdx(id, oi), item);
+            originalIndex = oi + 1;
+            break;
+          } else {
+            originalIndex = oi + 1;
+          }
+        }
+      }
     };
 
     loop(copyData, getPageIdx(), null);
@@ -228,16 +234,12 @@ export function BlockLayer(props: BlockLayerProps) {
 
   const onSelect = useCallback(
     (selectedId: string) => {
-      // Don't allow selecting comment-only blocks
-      const block = get(values, selectedId) as IBlockData | null;
-      if (block && isCommentBlock(block)) return;
-
       setFocusIdx(selectedId);
       setTimeout(() => {
         scrollBlockEleIntoView({ idx: selectedId });
       }, 50);
     },
-    [setFocusIdx, values],
+    [setFocusIdx],
   );
 
   const onContextMenu = useCallback(
@@ -288,7 +290,6 @@ export function BlockLayer(props: BlockLayerProps) {
           dropNode.parent &&
           dragBlock.validParentType.includes(dropNode.parent.type)
         ) {
-          // drop to parent
           moveBlock(dragNode.key, getChildIdx(dropNode.parentKey, dropIndex));
         }
       } else {
@@ -329,7 +330,6 @@ export function BlockLayer(props: BlockLayerProps) {
 
   const selectedKeys = useMemo(() => {
     if (!focusIdx) return [];
-
     return [focusIdx];
   }, [focusIdx]);
 
@@ -347,7 +347,6 @@ export function BlockLayer(props: BlockLayerProps) {
   // Scroll the focused tree node into view (centered) within the sidebar
   useEffect(() => {
     if (!focusIdx) return;
-    // Delay to let the tree re-render with new treeData/expandedKeys
     const timer = setTimeout(() => {
       const node = document.querySelector(`[data-tree-idx="${focusIdx}"]`);
       if (node) {
