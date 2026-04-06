@@ -402,10 +402,13 @@ export default function Editor() {
   }, [lastSavedAt]);
 
   // ── Core save function (used by both autosave and manual save) ──
+  const isTemplateModeRef = useRef(isTemplateMode);
+  isTemplateModeRef.current = isTemplateMode;
+
   const performSave = useCallback(async (articleId: number, values: IEmailTemplate, label: string) => {
     try {
       const contentJson = JSON.stringify(values.content);
-      await saveTemplate(articleId, values, isTemplateMode);
+      await saveTemplate(articleId, values, isTemplateModeRef.current);
       await api.addRevision(articleId, {
         timestamp: nowUnix(),
         label,
