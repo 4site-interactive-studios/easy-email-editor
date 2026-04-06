@@ -370,7 +370,7 @@ export default function Editor() {
       context: values.content,
       beautify: true,
     });
-    mjml = cleanMjmlForDisplay(mjml, getAppSettings().hideEditorMetadata);
+    mjml = unwrapCommentRawBlocks(mjml);
     setCodeMjml(mjml);
     codeMjmlRef.current = mjml;
     setCodeMode(true);
@@ -657,7 +657,9 @@ export default function Editor() {
         context: values.content,
         beautify: true,
       });
-      mjml = cleanMjmlForDisplay(mjml, getAppSettings().hideEditorMetadata);
+      // Only unwrap comments for display — don't strip metadata since
+      // the code editor needs the full MJML for correct round-tripping
+      mjml = unwrapCommentRawBlocks(mjml);
       setCodeMjml(mjml);
       codeMjmlRef.current = mjml;
       setCodeMode(true);
@@ -666,7 +668,18 @@ export default function Editor() {
 
   const exitCodeMode = useCallback(() => {
     if (!formApiRef.current) return;
-    const currentMjml = codeMjmlRef.current;
+    // Re-wrap bare HTML comments in <mj-raw> before parsing back,
+    // since cleanMjmlForDisplay unwraps them for display but the
+    // parser needs them wrapped to avoid XML errors
+    let currentMjml = codeMjmlRef.current;
+    currentMjml = currentMjml.replace(
+      /^(\s*)(<!--[\s\S]*?-->)\s*$/gm,
+      (match, indent, comment) => {
+        // Only wrap if not already inside <mj-raw>
+        if (match.includes('<mj-raw>')) return match;
+        return `${indent}<mj-raw>${comment}</mj-raw>`;
+      }
+    );
     try {
       const parsed = MjmlToJson(currentMjml);
       const values = formApiRef.current.getState().values;
