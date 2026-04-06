@@ -346,15 +346,22 @@ export function BlockLayer(props: BlockLayerProps) {
     return keys;
   }, [focusIdx]);
 
-  // Scroll the focused tree node into view (centered) within the sidebar
+  // Scroll the focused tree node into view (centered) within the sidebar.
+  // Retry a few times because the tree needs to expand nodes first.
   useEffect(() => {
     if (!focusIdx) return;
-    const timer = setTimeout(() => {
+    let attempt = 0;
+    const maxAttempts = 5;
+    const tryScroll = () => {
       const node = document.querySelector(`[data-tree-idx="${focusIdx}"]`);
       if (node) {
         node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else if (attempt < maxAttempts) {
+        attempt++;
+        setTimeout(tryScroll, 150);
       }
-    }, 100);
+    };
+    const timer = setTimeout(tryScroll, 100);
     return () => clearTimeout(timer);
   }, [focusIdx]);
 
