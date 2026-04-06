@@ -304,39 +304,52 @@ export const SimpleLayout: React.FC<
             </>
           )}
           {props.children}
+
+          {/* Right sidebar expand tab — visible when sidebar is collapsed */}
+          {rightCollapsed && (
+            <div
+              style={{
+                position: 'absolute',
+                right: 0,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                zIndex: 100,
+                cursor: 'pointer',
+              }}
+              onClick={() => setRightCollapsed(false)}
+              title={t('Show configuration panel')}
+            >
+              <div style={{
+                width: 12,
+                height: 48,
+                background: 'var(--selected-color, #1890ff)',
+                borderRadius: '6px 0 0 6px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: 0.6,
+                transition: 'opacity 0.15s',
+              }}>
+                <IconLeft style={{ color: '#fff', fontSize: 10 }} />
+              </div>
+            </div>
+          )}
         </Layout>
 
         <Layout.Sider
           style={{
             height: containerHeight,
-            minWidth: rightCollapsed ? 32 : RIGHT_MIN,
-            maxWidth: rightCollapsed ? 32 : RIGHT_MAX,
-            width: rightCollapsed ? 32 : rightWidth,
+            minWidth: rightCollapsed ? 0 : RIGHT_MIN,
+            maxWidth: rightCollapsed ? 0 : RIGHT_MAX,
+            width: rightCollapsed ? 0 : rightWidth,
             overflow: 'hidden',
             position: 'relative',
             flexShrink: 0,
             zIndex: 20,
+            display: rightCollapsed ? 'none' : undefined,
           }}
           className={styles.rightSide}
         >
-          {/* Right panel collapse toggle */}
-          <Button
-            style={{
-              position: 'absolute',
-              left: -16,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              zIndex: 10,
-              width: 20,
-              height: 40,
-              minWidth: 'unset',
-              padding: 0,
-              borderRadius: '4px 0 0 4px',
-              boxShadow: '-2px 0 6px rgba(0,0,0,0.12)',
-            }}
-            icon={rightCollapsed ? <IconLeft /> : <IconRight />}
-            onClick={() => setRightCollapsed(v => !v)}
-          />
           {!rightCollapsed && <ResizeHandle side='right' onResize={onResizeRight} />}
           {/* Always render AttributePanel so RichTextField stays mounted
               and listens for inline contenteditable edits in the shadow DOM.
@@ -348,12 +361,22 @@ export const SimpleLayout: React.FC<
               maxHeight: '100%',
               height: '100%',
               borderLeft: 'none',
-              display: rightCollapsed ? 'none' : undefined,
             }}
             bodyStyle={{ padding: 0, height: '100%', overflowY: 'auto', overflowX: 'hidden' }}
             className={styles.customScrollBarV2}
           >
-            <Tabs className={styles.layoutTabs}>
+            <Tabs
+              className={styles.layoutTabs}
+              extra={
+                <Button
+                  size='mini'
+                  icon={<IconRight />}
+                  onClick={() => setRightCollapsed(true)}
+                  style={{ marginRight: 4 }}
+                  title={t('Collapse panel')}
+                />
+              }
+            >
               <Tabs.TabPane
                 title={
                   <div style={{ height: 31, lineHeight: '31px' }}>
