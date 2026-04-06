@@ -128,14 +128,12 @@ export const SimpleLayout: React.FC<
     mjmlReadOnly?: boolean;
     defaultShowLayer?: boolean;
     showBlockLayer?: boolean;
-    hoverExpandSidebars?: boolean;
     blockMjmlPanel?: React.ReactNode;
     children: React.ReactNode | React.ReactElement;
   } & BlockLayerProps
 > = props => {
   const { height: containerHeight } = useEditorProps();
   const { showSourceCode = true, jsonReadOnly = false, mjmlReadOnly = true } = props;
-  const hoverExpand = props.hoverExpandSidebars ?? false;
   const { width: viewportWidth } = useWindowSize();
   const isNarrow = viewportWidth < 1280;
 
@@ -144,7 +142,6 @@ export const SimpleLayout: React.FC<
   const [sidebarWidth, setSidebarWidth] = useState(isNarrow ? SIDEBAR_MIN : SIDEBAR_DEFAULT);
   const [showLayoutColumn, setShowLayoutColumn] = useState(props.showBlockLayer ?? true);
   const [layoutColumnWidth, setLayoutColumnWidth] = useState(LAYOUT_COL_DEFAULT);
-  const sidebarHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Auto-expand sidebar when a different block is focused
   const { focusIdx } = useFocusIdx();
@@ -328,14 +325,6 @@ export const SimpleLayout: React.FC<
                 cursor: 'pointer',
               }}
               onClick={() => setSidebarHidden(false)}
-              onMouseEnter={() => {
-                if (hoverExpand) {
-                  sidebarHoverTimerRef.current = setTimeout(() => setSidebarHidden(false), 500);
-                }
-              }}
-              onMouseLeave={() => {
-                if (sidebarHoverTimerRef.current) { clearTimeout(sidebarHoverTimerRef.current); sidebarHoverTimerRef.current = null; }
-              }}
               title={t('Show sidebar')}
             >
               <div style={{

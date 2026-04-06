@@ -1201,7 +1201,7 @@ export default function Editor() {
                   />
                 ) : (
                   <div ref={editorContainerRef as any} style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
-                    <SimpleLayout showSourceCode={false} showBlockLayer hoverExpandSidebars={appSettings.hoverExpandSidebars}>
+                    <SimpleLayout showSourceCode={false} showBlockLayer>
                       <EmailEditor />
                     </SimpleLayout>
                     {multiUserEnabled && (

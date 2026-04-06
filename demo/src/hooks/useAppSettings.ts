@@ -7,7 +7,6 @@ export interface AppSettings {
   hideEditorMetadata: boolean;
   showSpacerIndicator: boolean;
   spacerIndicatorColor: string;
-  hoverExpandSidebars: boolean;
   autoSaveEnabled: boolean;
 }
 
@@ -18,7 +17,6 @@ const defaults: AppSettings = {
   hideEditorMetadata: false,
   showSpacerIndicator: true,
   spacerIndicatorColor: DEFAULT_SPACER_COLOR,
-  hoverExpandSidebars: true,
   autoSaveEnabled: true,
 };
 
