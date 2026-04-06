@@ -140,7 +140,7 @@ export const SimpleLayout: React.FC<
   // Sidebar states
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(isNarrow ? SIDEBAR_MIN : SIDEBAR_DEFAULT);
-  const [showLayoutColumn, setShowLayoutColumn] = useState(props.showBlockLayer ?? true);
+  const [showLayoutColumn, setShowLayoutColumn] = useState(false);
   const [layoutColumnWidth, setLayoutColumnWidth] = useState(LAYOUT_COL_DEFAULT);
 
   // Auto-expand sidebar when a different block is focused
@@ -258,6 +258,7 @@ export const SimpleLayout: React.FC<
                             transition: 'left 0.15s',
                           }} />
                         </div>
+                        <span style={{ fontSize: 11, userSelect: 'none' }}>{t('Layout')}</span>
                       </label>
                       <Button
                         size='mini'
