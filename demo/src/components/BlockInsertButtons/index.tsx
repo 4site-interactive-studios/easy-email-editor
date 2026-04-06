@@ -279,7 +279,7 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
 
   return createPortal(
     <>
-      {/* ── Top pill: [+ Insert] | [↰ Up & Out] | [↑ Move Up] ── */}
+      {/* ── Top pill: [+ Insert] | [⧉ Copy] | [↰ Up & Out] | [↑ Move Up] ── */}
       <div style={{ ...pillStyle, top: rect.top - 12, left: centerX }}>
         <button
           style={plusSegment}
@@ -287,6 +287,14 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
           title='Insert block above'
         >
           <Plus size={14} strokeWidth={3} />
+        </button>
+        <div style={divider} />
+        <button
+          style={{ ...moveSegment, background: '#6366f1' }}
+          onClick={e => { e.stopPropagation(); handleDuplicate(); }}
+          title='Duplicate this block'
+        >
+          <Copy size={13} strokeWidth={2.5} />
         </button>
         {showUpAndOut && (
           <>
