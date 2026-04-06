@@ -251,14 +251,14 @@ export const SimpleLayout: React.FC<
                       {!showLayoutColumn && (
                         <Button
                           size='mini'
-                          icon={<IconRight />}
+                          icon={<IconLeft />}
                           onClick={() => setShowLayoutColumn(true)}
                           title={t('Show layout')}
                         />
                       )}
                       <Button
                         size='mini'
-                        icon={<IconRight />}
+                        icon={<IconLeft />}
                         onClick={() => setSidebarHidden(true)}
                         title={t('Collapse sidebar')}
                       />
