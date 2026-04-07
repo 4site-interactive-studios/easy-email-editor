@@ -215,6 +215,57 @@ export default function Settings() {
           </div>
         </div>
 
+        {/* ── Insert Block Types ── */}
+        <div className='mt-10 pt-8 border-t border-gray-200'>
+          <h3 className='text-base font-semibold text-gray-900 mb-1 flex items-center gap-2'>
+            <Plus size={18} />
+            Insert Block Types
+          </h3>
+          <p className='text-sm text-gray-500 mb-4'>
+            Choose which block types appear in the insert menu. Disabled blocks won&apos;t
+            show in the &ldquo;Insert above&rdquo; and &ldquo;Insert below&rdquo; flyouts.
+          </p>
+          <div className='grid grid-cols-2 gap-2'>
+            {[
+              { type: 'text', label: 'Text' },
+              { type: 'image', label: 'Image' },
+              { type: 'button', label: 'Button' },
+              { type: 'divider', label: 'Divider' },
+              { type: 'spacer', label: 'Spacer' },
+              { type: 'section', label: 'Section' },
+              { type: 'wrapper', label: 'Container' },
+              { type: 'column', label: 'Column' },
+              { type: 'group', label: 'Group' },
+              { type: 'hero', label: 'Hero' },
+              { type: 'carousel', label: 'Carousel' },
+              { type: 'navbar', label: 'Navbar' },
+              { type: 'social', label: 'Social' },
+              { type: 'table', label: 'Table' },
+              { type: 'accordion', label: 'Accordion' },
+              { type: 'raw', label: 'Raw HTML' },
+            ].map(({ type, label }) => {
+              const disabled = (appSettings.disabledBlockTypes || []).includes(type);
+              return (
+                <label key={type} className='flex items-center gap-2 cursor-pointer select-none py-1 px-2 rounded hover:bg-gray-50'>
+                  <input
+                    type='checkbox'
+                    className='rounded border-gray-300 text-blue-600 focus:ring-blue-500'
+                    checked={!disabled}
+                    onChange={e => {
+                      const current = appSettings.disabledBlockTypes || [];
+                      const next = e.target.checked
+                        ? current.filter(t => t !== type)
+                        : [...current, type];
+                      updateAppSettings({ disabledBlockTypes: next });
+                    }}
+                  />
+                  <span className='text-sm text-gray-700'>{label}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
         {/* ── Export Find & Replace ── */}
         <div className='mt-10 pt-8 border-t border-gray-200'>
           <h3 className='text-base font-semibold text-gray-900 mb-1 flex items-center gap-2'>

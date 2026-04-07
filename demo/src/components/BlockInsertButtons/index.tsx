@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Copy, Type, Image, Square, Minus, ArrowDownUp, Columns, LayoutTemplate, ChevronRight, ChevronUp, ChevronDown, Table2, ListCollapse, Navigation, Share2, Code, Box } from 'lucide-react';
+import { Plus, Copy, Type, Image, Square, Minus, ArrowDownUp, Columns, LayoutTemplate, ChevronRight, ChevronUp, ChevronDown, Table2, ListCollapse, Navigation, Share2, Code, Box, Puzzle } from 'lucide-react';
 import { BlockManager, BasicType, getSiblingIdx, isCommentBlock } from 'easy-email-core';
 import { useBlock, useFocusIdx, getBlockNodeByIdx } from 'easy-email-editor';
 import { get } from 'lodash';
+import { useAppSettings } from '@demo/hooks/useAppSettings';
 
 /**
  * Get the sibling index that skips over comment-only raw blocks.
@@ -62,11 +63,14 @@ function getBlockName(block: any): string {
 
 interface BlockInsertButtonsProps {
   containerRef: React.RefObject<HTMLElement>;
+  componentCount?: number;
+  onOpenComponentLibrary?: (position: 'above' | 'below') => void;
 }
 
-export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
+export function BlockInsertButtons({ containerRef, componentCount = 0, onOpenComponentLibrary }: BlockInsertButtonsProps) {
   const { focusIdx } = useFocusIdx();
   const { addBlock, moveBlock, copyBlock, values } = useBlock();
+  const [appSettings] = useAppSettings();
   const [popup, setPopup] = useState<'above' | 'below' | null>(null);
   const [rect, setRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const popupRef = useRef<HTMLDivElement>(null);
@@ -99,16 +103,18 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
     };
   }, [focusIdx, values]);
 
-  // Valid block types for insertion
   const validBlocks = useMemo(() => {
     if (!parentInfo?.parentType) return [];
+    const disabled = new Set(appSettings.disabledBlockTypes || []);
     return BlockManager.getBlocks()
       .filter(block => {
         if (HIDDEN_BLOCK_TYPES.has(block.type as BasicType)) return false;
+        if (block.type.startsWith('advanced_')) return false;
+        if (disabled.has(block.type)) return false;
         return block.validParentType.includes(parentInfo.parentType!);
       })
       .sort((a, b) => (BLOCK_NAMES[a.type] || a.name || a.type).localeCompare(BLOCK_NAMES[b.type] || b.name || b.type));
-  }, [parentInfo?.parentType]);
+  }, [parentInfo?.parentType, appSettings.disabledBlockTypes]);
 
   // Track the focused block's DOM rect
   useEffect(() => {
@@ -320,6 +326,30 @@ export function BlockInsertButtons({ containerRef }: BlockInsertButtonsProps) {
             maxHeight: 300,
             overflowY: 'auto',
           }}>
+            {componentCount > 0 && onOpenComponentLibrary && parentInfo?.parentType === BasicType.PAGE && (
+              <>
+                <button
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '8px 12px', fontSize: 13, color: '#4338ca', fontWeight: 500,
+                    background: '#eef2ff', border: 'none', cursor: 'pointer', textAlign: 'left',
+                  }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#e0e7ff'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#eef2ff'; }}
+                  onClick={() => { setPopup(null); onOpenComponentLibrary(popup!); }}
+                >
+                  <Puzzle size={16} style={{ flexShrink: 0 }} />
+                  <span style={{ flex: 1 }}>Component</span>
+                  <span style={{
+                    fontSize: 10, fontWeight: 600, background: '#6366f1', color: '#fff',
+                    borderRadius: 8, padding: '1px 6px', minWidth: 16, textAlign: 'center',
+                  }}>
+                    {componentCount}
+                  </span>
+                </button>
+                <div style={{ height: 1, background: '#e5e7eb', margin: '2px 0' }} />
+              </>
+            )}
             <div style={{
               padding: '6px 12px 4px',
               fontSize: 10, fontWeight: 600, color: '#9ca3af',

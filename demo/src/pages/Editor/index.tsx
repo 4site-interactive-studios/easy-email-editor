@@ -1,5 +1,6 @@
 /* eslint-disable react/jsx-wrap-multilines */
 import React, { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useDispatch } from 'react-redux';
 import template from '@demo/store/template';
 import { useAppSelector } from '@demo/hooks/useAppSelector';
@@ -9,7 +10,7 @@ import { Dialog, Transition, Menu as HMenu } from '@headlessui/react';
 import {
   Home, Download, Copy, ChevronDown, Wand2, Loader2,
   AlertTriangle, CheckCircle, X, History, RotateCcw, Check,
-  Code, Eye, FileCode, StickyNote, LayoutTemplate, Monitor, Smartphone,
+  Code, Eye, FileCode, StickyNote, LayoutTemplate, Monitor, Smartphone, Grid3X3 as GridIcon, List, Pencil, Search, ArrowRight, RefreshCw,
 } from 'lucide-react';
 import { useQuery } from '@demo/hooks/useQuery';
 import { useHistory, Prompt } from 'react-router-dom';
@@ -18,6 +19,7 @@ import { Loading } from '@demo/components/loading';
 import { getTemplate } from '@demo/config/getTemplate';
 import { generateThumbnail } from '@demo/utils/generateThumbnail';
 import { api, Revision } from '@demo/utils/api';
+import type { ComponentRecord } from '@demo/utils/api';
 import { MjmlCodeEditor } from '@demo/components/MjmlCodeEditor';
 import { MjmlToJson, parseXMLtoBlockFidelity } from 'easy-email-extensions';
 import { IArticle } from '@demo/services/article';
@@ -29,6 +31,7 @@ import { AvatarBar } from '@demo/components/AvatarBar';
 import { getUserIdentity } from '@demo/utils/user-identity';
 import { RemoteCursors } from '@demo/components/RemoteCursors';
 import { BlockInsertButtons } from '@demo/components/BlockInsertButtons';
+// import { ComponentLibrary } from '@demo/components/ComponentLibrary';
 import { BlockMjmlEditor } from '@demo/components/BlockMjmlEditor';
 import { getAppSettings, useAppSettings, applyExportFindReplace } from '@demo/hooks/useAppSettings';
 
@@ -39,7 +42,7 @@ import {
   IEmailTemplate,
 } from 'easy-email-editor';
 
-import { AdvancedType, IBlockData, JsonToMjml } from 'easy-email-core';
+import { AdvancedType, BasicType, IBlockData, JsonToMjml } from 'easy-email-core';
 import { ExtensionProps, SimpleLayout } from 'easy-email-extensions';
 
 import 'easy-email-editor/lib/style.css';
@@ -220,6 +223,13 @@ function SpacerIndicatorSync() {
   return null;
 }
 
+/** Syncs the current focusIdx to a ref accessible outside the provider */
+function FocusIdxSync({ targetRef }: { targetRef: React.MutableRefObject<string> }) {
+  const { focusIdx } = useFocusIdx();
+  targetRef.current = focusIdx || '';
+  return null;
+}
+
 function CollaborationSync({ collab }: { collab: ReturnType<typeof useCollaboration> }) {
   const { focusIdx } = useFocusIdx();
   const prevIdx = useRef('');
@@ -319,6 +329,23 @@ export default function Editor() {
   const aiFixRunning = Array.from(aiFixProgress.values()).some(s => s === 'fixing' || s === 'pending');
   const validationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Component library
+  const [templateComponents, setTemplateComponents] = useState<ComponentRecord[]>([]);
+  const [showComponentLibrary, setShowComponentLibrary] = useState(false);
+  const [componentSyncing, setComponentSyncing] = useState(false);
+  const [componentViewMode, setComponentViewMode] = useState<'grid' | 'list'>(() => {
+    try { return (localStorage.getItem('component-library-view') as 'grid' | 'list') || 'list'; } catch { return 'list'; }
+  });
+  const [componentInsertPosition, setComponentInsertPosition] = useState<'above' | 'below'>('below');
+  const [componentSearch, setComponentSearch] = useState('');
+  const filteredComponents = useMemo(() => {
+    if (!componentSearch.trim()) return templateComponents;
+    const q = componentSearch.toLowerCase();
+    return templateComponents.filter(c => c.name.toLowerCase().includes(q));
+  }, [templateComponents, componentSearch]);
+  const [renamingComponentId, setRenamingComponentId] = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+
   // Revision history
   const [showHistory, setShowHistory] = useState(false);
   const [revisions, setRevisions] = useState<Revision[]>([]);
@@ -327,6 +354,8 @@ export default function Editor() {
 
   // Code mode: 'visual' | 'code' | 'block'
   const [codeMode, setCodeMode] = useState(false);
+  const [codeJumpToLine, setCodeJumpToLine] = useState(0);
+  const jumpCounterRef = useRef(0);
   const [previewMode, setPreviewMode] = useState(false);
   const previewHtmlRef = useRef('');
   const [previewWidth, setPreviewWidth] = useState<'desktop' | 'mobile'>('desktop');
@@ -346,6 +375,7 @@ export default function Editor() {
 
   // Autosave refs
   const formApiRef = useRef<FormApi<IEmailTemplate> | null>(null);
+  const focusIdxRef = useRef('');
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedContentRef = useRef<string>('');
   const lastScheduledContentRef = useRef<string>('');
@@ -421,6 +451,74 @@ export default function Editor() {
   // ── Core save function (used by both autosave and manual save) ──
   const isTemplateModeRef = useRef(isTemplateMode);
   isTemplateModeRef.current = isTemplateMode;
+
+  const syncComponentLibrary = useCallback(async (articleId: number, content: IBlockData) => {
+    try {
+      const { isCommentBlock: isComment, getCommentText: getComment } = await import('easy-email-core');
+      const children = content.children || [];
+      const components: ComponentRecord[] = [];
+      let pendingComment = '';
+
+      for (let i = 0; i < children.length; i++) {
+        const child = children[i];
+        if (isComment(child)) {
+          pendingComment = getComment(child);
+          continue;
+        }
+        if (child.type === BasicType.WRAPPER || child.type === BasicType.SECTION) {
+          const fallback = child.type === BasicType.WRAPPER
+            ? `Container ${components.length + 1}`
+            : `Row ${components.length + 1}`;
+          const name = pendingComment || fallback;
+          pendingComment = '';
+
+          const blockDataJson = JSON.stringify(child);
+          const existing = templateComponents.find(
+            (c, idx) => idx === components.length && c.block_data === blockDataJson
+          );
+
+          components.push({
+            name,
+            block_data: blockDataJson,
+            thumbnail: existing?.thumbnail || '',
+            position: components.length,
+          });
+        } else {
+          pendingComment = '';
+        }
+      }
+
+      const saved = await api.syncComponents(articleId, components);
+      setTemplateComponents(saved);
+
+      // Generate thumbnails in background for new/changed components
+      const needThumbnails = saved.filter(c => !c.thumbnail);
+      if (needThumbnails.length > 0) {
+        const { generateBlockThumbnail } = await import('@demo/utils/generateThumbnail');
+        for (const comp of needThumbnails) {
+          try {
+            const blockData = JSON.parse(comp.block_data);
+            const thumb = await generateBlockThumbnail(blockData, content);
+            comp.thumbnail = thumb;
+          } catch { /* skip */ }
+        }
+        const updated = await api.syncComponents(articleId, saved);
+        setTemplateComponents(updated);
+      }
+    } catch { /* non-critical */ }
+  }, [templateComponents]);
+
+  const handleRenameComponent = useCallback(async (compId: number, newName: string) => {
+    if (!newName.trim() || !savedArticleId) return;
+    const updated = templateComponents.map(c =>
+      c.id === compId ? { ...c, name: newName.trim() } : c
+    );
+    setTemplateComponents(updated);
+    setRenamingComponentId(null);
+    try {
+      await api.syncComponents(savedArticleId, updated);
+    } catch { /* non-critical */ }
+  }, [templateComponents, savedArticleId]);
 
   const performSave = useCallback(async (articleId: number, values: IEmailTemplate, label: string) => {
     try {
@@ -502,6 +600,11 @@ export default function Editor() {
     } else {
       dispatch(template.actions.fetchDefaultTemplate(undefined));
     }
+    // Load component library
+    if (id) {
+      api.getComponents(+id).then(setTemplateComponents).catch(() => {});
+    }
+
     return () => {
       dispatch(template.actions.set(null));
     };
@@ -1117,6 +1220,35 @@ export default function Editor() {
                     >
                       <AlertTriangle size={15} />
                     </button>
+                    <button
+                      className='inline-flex items-center justify-center w-8 h-8 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors relative'
+                      onClick={() => {
+                        if (templateComponents.length === 0 && !componentSyncing && savedArticleId && formApiRef.current) {
+                          setComponentSyncing(true);
+                          setShowComponentLibrary(true); setComponentSearch('');
+                          const vals = formApiRef.current.getState().values;
+                          syncComponentLibrary(savedArticleId, vals.content as any)
+                            .catch(() => {})
+                            .finally(() => setComponentSyncing(false));
+                        } else {
+                          setShowComponentLibrary(true); setComponentSearch('');
+                        }
+                      }}
+                      title={templateComponents.length > 0 ? `Component library (${templateComponents.length})` : 'Component library'}
+                    >
+                      <LayoutTemplate size={15} />
+                      {templateComponents.length > 0 && (
+                        <span style={{
+                          position: 'absolute', top: 2, right: 2,
+                          fontSize: 9, fontWeight: 700, lineHeight: '14px',
+                          minWidth: 14, height: 14, textAlign: 'center',
+                          background: '#6366f1', color: '#fff', borderRadius: 7,
+                          padding: '0 3px',
+                        }}>
+                          {templateComponents.length}
+                        </span>
+                      )}
+                    </button>
                     {savedArticleId && (
                       <button
                         className='inline-flex items-center justify-center w-8 h-8 border-0 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors'
@@ -1220,6 +1352,7 @@ export default function Editor() {
                   </div>
                 </header>
 
+                <FocusIdxSync targetRef={focusIdxRef} />
                 <CollaborationSync collab={collab} />
                 <SpacerIndicatorSync />
 
@@ -1245,6 +1378,7 @@ export default function Editor() {
                     mjmlString={codeMjml}
                     onMjmlChange={handleCodeMjmlChange}
                     height='calc(100vh - 52px)'
+                    jumpToLine={codeJumpToLine}
                   />
                 ) : (
                   <div style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
@@ -1423,7 +1557,11 @@ export default function Editor() {
                           onMouseMove={(x, y) => collab.sendMousePosition(x, y)}
                         />
                       )}
-                      <BlockInsertButtons containerRef={editorContainerRef as React.RefObject<HTMLElement>} />
+                      <BlockInsertButtons
+                        containerRef={editorContainerRef as React.RefObject<HTMLElement>}
+                        componentCount={templateComponents.length}
+                        onOpenComponentLibrary={(pos) => { setComponentInsertPosition(pos); setShowComponentLibrary(true); setComponentSearch(''); }}
+                      />
                     </div>
                   </div>
                 )}
@@ -1474,7 +1612,20 @@ export default function Editor() {
                     <Dialog.Title className='text-lg font-semibold text-gray-900 flex items-center gap-2'>
                       {validationErrors.length > 0 ? <><AlertTriangle size={18} className='text-amber-500' /> Validation Report</> : <><CheckCircle size={18} className='text-green-500' /> Validation Report</>}
                     </Dialog.Title>
-                    <button className='p-1 text-gray-400 hover:text-gray-600 rounded transition-colors' onClick={() => setShowValidation(false)}><X size={18} /></button>
+                    <div className='flex items-center gap-2'>
+                      <button
+                        className='p-1 text-gray-400 hover:text-blue-600 rounded transition-colors'
+                        onClick={() => {
+                          if (formApiRef.current) {
+                            runValidation(formApiRef.current.getState().values.content as any);
+                          }
+                        }}
+                        title='Re-run validation'
+                      >
+                        <RefreshCw size={16} />
+                      </button>
+                      <button className='p-1 text-gray-400 hover:text-gray-600 rounded transition-colors' onClick={() => setShowValidation(false)}><X size={18} /></button>
+                    </div>
                   </div>
                   <div className='px-6 py-4 max-h-[60vh] overflow-y-auto'>
                     {validationErrors.length === 0 ? (
@@ -1507,7 +1658,22 @@ export default function Editor() {
                                 </p>
                                 <div className='flex gap-3 mt-1 text-xs text-gray-500'>
                                   {err.tagName && <span className='font-mono bg-gray-100 px-1.5 py-0.5 rounded'>{'<'}{err.tagName.startsWith('mj-') ? err.tagName : `mj-${err.tagName}`}{'>'}</span>}
-                                  {err.line > 0 && <span>Line {err.line}</span>}
+                                  {err.line > 0 && (
+                                    <button
+                                      className='inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline'
+                                      onClick={() => {
+                                        setShowValidation(false);
+                                        if (!codeMode) enterCodeMode();
+                                        // Use a unique value to ensure the effect fires even for the same line
+                                        jumpCounterRef.current++;
+                                        const uniqueLine = err.line + jumpCounterRef.current * 0.001;
+                                        setTimeout(() => setCodeJumpToLine(uniqueLine), codeMode ? 50 : 300);
+                                      }}
+                                      title='Jump to this line in Code view'
+                                    >
+                                      Line {err.line} <ArrowRight size={10} />
+                                    </button>
+                                  )}
                                   {status === 'fixing' && <span className='text-blue-600 font-medium'>Fixing...</span>}
                                   {status === 'fixed' && <span className='text-green-600 font-medium'>Fixed</span>}
                                   {status === 'failed' && <span className='text-red-500 font-medium'>Could not fix</span>}
@@ -1727,6 +1893,298 @@ export default function Editor() {
             </div>
           </Dialog>
         </Transition>
+        {/* ── Component Library ── */}
+        {showComponentLibrary && createPortal(
+          <div
+            id='component-library-overlay'
+            style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(0,0,0,0.3)',
+            }}
+            onClick={e => { if ((e.target as HTMLElement).id === 'component-library-overlay') setShowComponentLibrary(false); }}
+          >
+            <div style={{
+              background: '#fff', borderRadius: 12,
+              width: '90%', maxWidth: 720, maxHeight: '80vh',
+              display: 'flex', flexDirection: 'column', overflow: 'hidden',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+            }}>
+              {/* Header */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '16px 20px', borderBottom: '1px solid #e5e7eb', flexShrink: 0,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <LayoutTemplate size={18} style={{ color: '#6366f1' }} />
+                  <span style={{ fontSize: 16, fontWeight: 600, color: '#111827' }}>Component Library</span>
+                  {templateComponents.length > 0 && (
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#6366f1', background: '#eef2ff', borderRadius: 10, padding: '2px 8px' }}>
+                      {templateComponents.length}
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {templateComponents.length > 0 && (
+                    <div style={{ display: 'flex', borderRadius: 4, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+                      <button
+                        onClick={() => { setComponentViewMode('grid'); try { localStorage.setItem('component-library-view', 'grid'); } catch {} }}
+                        style={{
+                          padding: '4px 6px', border: 'none', cursor: 'pointer',
+                          background: componentViewMode === 'grid' ? '#eef2ff' : '#fff',
+                          color: componentViewMode === 'grid' ? '#6366f1' : '#9ca3af',
+                          display: 'flex', alignItems: 'center',
+                        }}
+                        title='Grid view'
+                      >
+                        <GridIcon size={14} />
+                      </button>
+                      <button
+                        onClick={() => { setComponentViewMode('list'); try { localStorage.setItem('component-library-view', 'list'); } catch {} }}
+                        style={{
+                          padding: '4px 6px', border: 'none', borderLeft: '1px solid #e5e7eb', cursor: 'pointer',
+                          background: componentViewMode === 'list' ? '#eef2ff' : '#fff',
+                          color: componentViewMode === 'list' ? '#6366f1' : '#9ca3af',
+                          display: 'flex', alignItems: 'center',
+                        }}
+                        title='List view'
+                      >
+                        <List size={14} />
+                      </button>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => {
+                      if (componentSyncing || !savedArticleId || !formApiRef.current) return;
+                      setComponentSyncing(true);
+                      const vals = formApiRef.current.getState().values;
+                      syncComponentLibrary(savedArticleId, vals.content as any)
+                        .catch(() => {})
+                        .finally(() => setComponentSyncing(false));
+                    }}
+                    disabled={componentSyncing}
+                    style={{
+                      background: 'none', border: 'none', cursor: componentSyncing ? 'default' : 'pointer',
+                      color: componentSyncing ? '#c7d2fe' : '#9ca3af', padding: 4,
+                      opacity: componentSyncing ? 0.5 : 1,
+                    }}
+                    title='Regenerate components from template'
+                  >
+                    <RotateCcw size={15} className={componentSyncing ? 'animate-spin' : ''} />
+                  </button>
+                  <button onClick={() => setShowComponentLibrary(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 4 }}>
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+              {/* Search */}
+              {!componentSyncing && templateComponents.length > 0 && (
+                <div style={{ padding: '12px 20px 0', flexShrink: 0 }}>
+                  <div style={{ position: 'relative' }}>
+                    <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', pointerEvents: 'none' }} />
+                    <input
+                      type='text'
+                      placeholder='Search components…'
+                      value={componentSearch}
+                      onChange={e => setComponentSearch(e.target.value)}
+                      style={{
+                        width: '100%', padding: '8px 10px 8px 32px',
+                        border: '1px solid #e5e7eb', borderRadius: 6,
+                        fontSize: 13, outline: 'none', boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+              {/* Content */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+                {componentSyncing ? (
+                  <div style={{ padding: 40, textAlign: 'center' }}>
+                    <Loader2 size={32} className='animate-spin' style={{ color: '#6366f1', margin: '0 auto 12px', display: 'block' }} />
+                    <p style={{ fontSize: 14, fontWeight: 500, color: '#6366f1', margin: '8px 0 4px' }}>Building component library…</p>
+                    <p style={{ fontSize: 12, color: '#9ca3af', margin: 0 }}>Extracting containers and generating thumbnails</p>
+                  </div>
+                ) : templateComponents.length === 0 ? (
+                  <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>
+                    <p style={{ fontSize: 14, fontWeight: 500, margin: '0 0 4px' }}>No components found</p>
+                    <p style={{ fontSize: 12, margin: 0 }}>Add Container blocks to this template and save to populate the library.</p>
+                  </div>
+                ) : filteredComponents.length === 0 ? (
+                  <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>
+                    <p style={{ fontSize: 14, fontWeight: 500, margin: '0 0 4px' }}>No matches for &ldquo;{componentSearch}&rdquo;</p>
+                  </div>
+                ) : componentViewMode === 'grid' ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+                    {filteredComponents.map((comp, i) => (
+                      <div
+                        key={comp.id || i}
+                        style={{
+                          background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8,
+                          overflow: 'hidden', transition: 'border-color 0.15s, box-shadow 0.15s',
+                        }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = '#6366f1'; (e.currentTarget as HTMLElement).style.boxShadow = '0 0 0 2px rgba(99,102,241,0.15)'; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#e5e7eb'; (e.currentTarget as HTMLElement).style.boxShadow = 'none'; }}
+                      >
+                        {/* Thumbnail — no crop, full width, natural height */}
+                        <button
+                          onClick={() => {
+                            if (!formApiRef.current) return;
+                            try {
+                              const blockData = typeof comp.block_data === 'string' ? JSON.parse(comp.block_data) : comp.block_data;
+                              const vals = formApiRef.current.getState().values;
+                              const pageContent = cloneDeep(vals.content);
+                              const topChildMatch = focusIdxRef.current.match(/^content\.children\.\[(\d+)\]/);
+const childIdx = topChildMatch ? parseInt(topChildMatch[1], 10) : pageContent.children.length;
+const insertAt = componentInsertPosition === 'above' ? childIdx : childIdx + 1;
+pageContent.children.splice(insertAt, 0, cloneDeep(blockData));
+                              formApiRef.current.change('content' as any, pageContent);
+                              Message.success('Component inserted');
+                              setShowComponentLibrary(false);
+                            } catch { /* skip */ }
+                          }}
+                          style={{ width: '100%', background: '#f9fafb', border: 'none', borderBottom: '1px solid #f3f4f6', cursor: 'pointer', padding: 0, display: 'block' }}
+                        >
+                          {comp.thumbnail ? (
+                            <img src={comp.thumbnail} alt={comp.name} style={{ width: '100%', display: 'block' }} />
+                          ) : (
+                            <div style={{ padding: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <LayoutTemplate size={32} style={{ color: '#d1d5db' }} />
+                            </div>
+                          )}
+                        </button>
+                        {/* Name with rename */}
+                        <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          {renamingComponentId === comp.id ? (
+                            <input
+                              autoFocus
+                              value={renameValue}
+                              onChange={e => setRenameValue(e.target.value)}
+                              onBlur={() => handleRenameComponent(comp.id!, renameValue)}
+                              onKeyDown={e => { if (e.key === 'Enter') handleRenameComponent(comp.id!, renameValue); if (e.key === 'Escape') setRenamingComponentId(null); }}
+                              style={{ flex: 1, fontSize: 13, fontWeight: 500, border: '1px solid #6366f1', borderRadius: 4, padding: '2px 6px', outline: 'none' }}
+                            />
+                          ) : (
+                            <>
+                              <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: '#374151', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                                {comp.name}
+                              </span>
+                              <button
+                                onClick={() => { setRenamingComponentId(comp.id!); setRenameValue(comp.name); }}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#d1d5db', padding: 2, flexShrink: 0 }}
+                                title='Rename'
+                              >
+                                <Pencil size={12} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  /* List view */
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {filteredComponents.map((comp, i) => (
+                      <div
+                        key={comp.id || i}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 12,
+                          background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8,
+                          padding: '8px 12px', transition: 'border-color 0.15s',
+                        }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = '#6366f1'; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#e5e7eb'; }}
+                      >
+                        {/* Small thumbnail with hover preview */}
+                        {comp.thumbnail && (
+                          <div
+                            style={{ position: 'relative', flexShrink: 0 }}
+                            onMouseEnter={e => {
+                              const preview = (e.currentTarget as HTMLElement).querySelector('[data-preview]') as HTMLElement;
+                              if (preview) {
+                                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                preview.style.display = 'block';
+                                preview.style.left = `${rect.right + 8}px`;
+                                preview.style.top = `${Math.max(8, rect.top - 40)}px`;
+                              }
+                            }}
+                            onMouseLeave={e => {
+                              const preview = (e.currentTarget as HTMLElement).querySelector('[data-preview]') as HTMLElement;
+                              if (preview) preview.style.display = 'none';
+                            }}
+                          >
+                            <img src={comp.thumbnail} alt={comp.name} style={{ width: 60, borderRadius: 4, display: 'block', cursor: 'zoom-in' }} />
+                            <div
+                              data-preview
+                              style={{
+                                display: 'none', position: 'fixed',
+                                zIndex: 100000, background: '#fff', borderRadius: 8,
+                                boxShadow: '0 8px 30px rgba(0,0,0,0.2)', border: '1px solid #e5e7eb',
+                                padding: 4, width: 300, maxHeight: '80vh', overflow: 'auto',
+                                pointerEvents: 'none',
+                              }}
+                            >
+                              <img src={comp.thumbnail} alt={comp.name} style={{ width: '100%', display: 'block', borderRadius: 4 }} />
+                            </div>
+                          </div>
+                        )}
+                        {/* Name */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          {renamingComponentId === comp.id ? (
+                            <input
+                              autoFocus
+                              value={renameValue}
+                              onChange={e => setRenameValue(e.target.value)}
+                              onBlur={() => handleRenameComponent(comp.id!, renameValue)}
+                              onKeyDown={e => { if (e.key === 'Enter') handleRenameComponent(comp.id!, renameValue); if (e.key === 'Escape') setRenamingComponentId(null); }}
+                              style={{ width: '100%', fontSize: 13, fontWeight: 500, border: '1px solid #6366f1', borderRadius: 4, padding: '2px 6px', outline: 'none', boxSizing: 'border-box' }}
+                            />
+                          ) : (
+                            <span style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>{comp.name}</span>
+                          )}
+                        </div>
+                        {/* Actions */}
+                        <button
+                          onClick={() => { setRenamingComponentId(comp.id!); setRenameValue(comp.name); }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#d1d5db', padding: 4, flexShrink: 0 }}
+                          title='Rename'
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (!formApiRef.current) return;
+                            try {
+                              const blockData = typeof comp.block_data === 'string' ? JSON.parse(comp.block_data) : comp.block_data;
+                              const vals = formApiRef.current.getState().values;
+                              const pageContent = cloneDeep(vals.content);
+                              const topChildMatch = focusIdxRef.current.match(/^content\.children\.\[(\d+)\]/);
+const childIdx = topChildMatch ? parseInt(topChildMatch[1], 10) : pageContent.children.length;
+const insertAt = componentInsertPosition === 'above' ? childIdx : childIdx + 1;
+pageContent.children.splice(insertAt, 0, cloneDeep(blockData));
+                              formApiRef.current.change('content' as any, pageContent);
+                              Message.success('Component inserted');
+                              setShowComponentLibrary(false);
+                            } catch { /* skip */ }
+                          }}
+                          style={{
+                            background: '#eef2ff', border: 'none', cursor: 'pointer',
+                            color: '#6366f1', padding: '4px 10px', borderRadius: 4,
+                            fontSize: 12, fontWeight: 500, flexShrink: 0,
+                          }}
+                        >
+                          Insert
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
         {/* ── Code mode consensus: my proposal confirmation ── */}
         {showCodeModeConfirm && (
           <div className='fixed inset-0 z-50 flex items-center justify-center p-4'>

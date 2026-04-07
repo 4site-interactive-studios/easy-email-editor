@@ -16,6 +16,7 @@ export interface AppSettings {
   spacerIndicatorColor: string;
   autoSaveEnabled: boolean;
   exportFindReplace: ExportFindReplaceRule[];
+  disabledBlockTypes: string[];
 }
 
 const DEFAULT_SPACER_COLOR = '147, 197, 253';
@@ -27,6 +28,7 @@ const defaults: AppSettings = {
   spacerIndicatorColor: DEFAULT_SPACER_COLOR,
   autoSaveEnabled: true,
   exportFindReplace: [],
+  disabledBlockTypes: [],
 };
 
 export { DEFAULT_SPACER_COLOR };

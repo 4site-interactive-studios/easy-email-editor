@@ -56,6 +56,22 @@ try {
   // Column already exists — ignore
 }
 
+// Components table for per-template component library
+db.exec(`
+  CREATE TABLE IF NOT EXISTS components (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    template_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    block_data TEXT NOT NULL,
+    thumbnail TEXT DEFAULT '',
+    position INTEGER DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY (template_id) REFERENCES templates(article_id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_components_template ON components(template_id);
+`);
+
 // Prepared statements
 const stmts = {
   listTemplates: db.prepare('SELECT * FROM templates WHERE is_template = 0 ORDER BY updated_at DESC'),
@@ -70,6 +86,10 @@ const stmts = {
     WHERE article_id=@article_id
   `),
   deleteTemplate: db.prepare('DELETE FROM templates WHERE article_id = ?'),
+
+  listComponents: db.prepare('SELECT * FROM components WHERE template_id = ? ORDER BY position ASC'),
+  deleteComponentsByTemplate: db.prepare('DELETE FROM components WHERE template_id = ?'),
+  insertComponent: db.prepare('INSERT INTO components (template_id, name, block_data, thumbnail, position, created_at, updated_at) VALUES (@template_id, @name, @block_data, @thumbnail, @position, @created_at, @updated_at)'),
 
   listRevisions: db.prepare('SELECT * FROM revisions WHERE article_id = ? ORDER BY id DESC LIMIT 50'),
   insertRevision: db.prepare('INSERT INTO revisions (article_id, timestamp, label, content, subject, note) VALUES (@article_id, @timestamp, @label, @content, @subject, @note)'),
@@ -231,6 +251,39 @@ const httpServer = createServer(async (req, res) => {
       const body = await parseBody(req);
       stmts.updateRevisionNote.run(body.note || '', +noteMatch[1]);
       return json(res, { ok: true });
+    }
+
+    // ── Components (per-template component library) ──
+    const componentsMatch = path.match(/^\/api\/templates\/(\d+)\/components$/);
+    if (componentsMatch && method === 'GET') {
+      const rows = stmts.listComponents.all(+componentsMatch[1]);
+      return json(res, rows);
+    }
+
+    if (componentsMatch && method === 'PUT') {
+      const templateId = +componentsMatch[1];
+      const body = await parseBody(req);
+      const components = Array.isArray(body) ? body : body.components || [];
+      const now = Math.floor(Date.now() / 1000);
+
+      const syncComponents = db.transaction(() => {
+        stmts.deleteComponentsByTemplate.run(templateId);
+        for (let i = 0; i < components.length; i++) {
+          const comp = components[i];
+          stmts.insertComponent.run({
+            template_id: templateId,
+            name: comp.name || `Container ${i + 1}`,
+            block_data: typeof comp.block_data === 'string' ? comp.block_data : JSON.stringify(comp.block_data),
+            thumbnail: comp.thumbnail || '',
+            position: i,
+            created_at: comp.created_at || now,
+            updated_at: now,
+          });
+        }
+      });
+      syncComponents();
+      const rows = stmts.listComponents.all(templateId);
+      return json(res, rows);
     }
 
     // ── Presence (who's editing which templates) ──

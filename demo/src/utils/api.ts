@@ -10,6 +10,17 @@ export interface Revision {
   note: string;
 }
 
+export interface ComponentRecord {
+  id?: number;
+  template_id?: number;
+  name: string;
+  block_data: string; // JSON string of IBlockData
+  thumbnail: string;
+  position: number;
+  created_at?: number;
+  updated_at?: number;
+}
+
 const BASE = '/api';
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
@@ -87,6 +98,19 @@ export const api = {
 
   async clearRevisions(articleId: number): Promise<void> {
     await request(`/templates/${articleId}/revisions`, { method: 'DELETE' });
+  },
+
+  // ── Components (per-template library) ──
+
+  async getComponents(templateId: number): Promise<ComponentRecord[]> {
+    return request<ComponentRecord[]>(`/templates/${templateId}/components`);
+  },
+
+  async syncComponents(templateId: number, components: ComponentRecord[]): Promise<ComponentRecord[]> {
+    return request<ComponentRecord[]>(`/templates/${templateId}/components`, {
+      method: 'PUT',
+      body: JSON.stringify(components),
+    });
   },
 
   // ── Settings ──

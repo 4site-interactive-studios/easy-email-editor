@@ -168,25 +168,209 @@ const mjmlSchema: Record<string, any> = {
   'mj-class': { children: [], attrs: { name: null } },
 };
 
-// ─── Auto-format MJML ──────────────────────────────────────────────────────────
+// Tags whose inner content should be preserved verbatim (not reformatted)
+const CONTENT_TAGS = new Set([
+  'mj-text', 'mj-button', 'mj-style', 'mj-raw', 'mj-title', 'mj-preview',
+  'mj-accordion-title', 'mj-accordion-text',
+]);
+
+// Tags that increase indent depth when opened
+const INDENT_TAGS = new Set([
+  'mjml', 'mj-head', 'mj-body', 'mj-attributes', 'mj-html-attributes',
+  'mj-section', 'mj-column', 'mj-group', 'mj-wrapper', 'mj-hero',
+  'mj-social', 'mj-navbar', 'mj-accordion', 'mj-accordion-element',
+  'mj-carousel', 'mj-selector', 'mj-table',
+  'mj-text', 'mj-button', 'mj-style', 'mj-raw',
+  'mj-accordion-title', 'mj-accordion-text',
+]);
 
 function formatMjml(mjml: string): string {
-  let indent = 0;
-  const lines: string[] = [];
-  // Split by tags, preserving content between tags
-  const tokens = mjml.replace(/>\s*</g, '>\n<').split('\n');
-  for (const raw of tokens) {
-    const line = raw.trim();
-    if (!line) continue;
-    // Closing tag
-    if (/^<\//.test(line)) indent = Math.max(0, indent - 1);
-    lines.push('  '.repeat(indent) + line);
-    // Self-closing or opening tag (not closing)
-    if (/^<[^/!].*[^/]>$/.test(line) && !/^<(br|hr|img|meta|link|input)/i.test(line)) {
-      indent++;
+  const TAB = '\t';
+  let depth = 0;
+  const output: string[] = [];
+
+  // Tokenize: split into tags and text segments
+  const tagRegex = /<(\/?)([a-zA-Z][a-zA-Z0-9-]*)((?:\s+[^>]*?)?)(\s*\/?)>/g;
+  let lastIndex = 0;
+
+  const indent = () => TAB.repeat(depth);
+
+  const addBlankLine = () => {
+    if (output.length > 0 && output[output.length - 1].trim() !== '') {
+      output.push('');
     }
+  };
+
+  // Track previous tag for blank line rules
+  let prevClosingTag = '';
+  let prevOpeningTag = '';
+  let inBody = false;
+
+  let match: RegExpExecArray | null;
+  while ((match = tagRegex.exec(mjml)) !== null) {
+    const [fullMatch, closingSlash, tagName, attrs, selfClosingSlash] = match;
+    const tagLower = tagName.toLowerCase();
+    const isClosing = closingSlash === '/';
+    const isSelfClosing = selfClosingSlash.trim() === '/' || fullMatch.endsWith('/>');
+    const isMjTag = tagLower.startsWith('mj-') || tagLower === 'mjml';
+
+    // Text between tags (non-mj content or whitespace)
+    const textBefore = mjml.substring(lastIndex, match.index);
+    lastIndex = match.index + fullMatch.length;
+
+    // If we're NOT inside a content tag, skip whitespace-only text
+    // If there IS meaningful text, emit it (shouldn't happen outside content tags in MJML)
+    if (textBefore.trim() && !isMjTag) {
+      output.push(indent() + textBefore.trim());
+    }
+
+    if (!isMjTag) {
+      // Non-MJML tag (HTML inside content) — already handled by content preservation
+      continue;
+    }
+
+    // Content tags: emit opening tag, preserve inner content, emit closing tag
+    if (!isClosing && !isSelfClosing && CONTENT_TAGS.has(tagLower)) {
+      // Find the matching closing tag
+      const closeTag = `</${tagName}>`;
+      const closeIdx = mjml.indexOf(closeTag, lastIndex);
+      if (closeIdx === -1) {
+        // No closing tag found — emit as self-closing
+        output.push(indent() + fullMatch);
+        continue;
+      }
+
+      const innerContent = mjml.substring(lastIndex, closeIdx);
+      lastIndex = closeIdx + closeTag.length;
+      tagRegex.lastIndex = lastIndex;
+
+      // Blank line rules for specific tags
+      if (tagLower === 'mj-style' || tagLower === 'mj-raw') {
+        addBlankLine();
+      }
+
+      if (innerContent.trim() === '') {
+        // Empty content tag — single line
+        output.push(indent() + fullMatch + closeTag);
+      } else if (!innerContent.includes('\n') && innerContent.trim().length < 80) {
+        // Short single-line content
+        output.push(indent() + fullMatch + innerContent.trim() + closeTag);
+      } else {
+        // Multi-line content — preserve with one extra indent
+        output.push(indent() + fullMatch);
+        const contentLines = innerContent.split('\n');
+        // Find minimum indentation in content to normalize
+        const nonEmptyLines = contentLines.filter(l => l.trim());
+        const minIndent = nonEmptyLines.reduce((min, l) => {
+          const leading = l.match(/^(\s*)/)?.[1]?.length || 0;
+          return Math.min(min, leading);
+        }, Infinity);
+        const contentIndent = indent() + TAB;
+        for (const cl of contentLines) {
+          const trimmed = cl.trim();
+          if (!trimmed) {
+            // Preserve intentional blank lines within content
+            if (output.length > 0 && output[output.length - 1].trim() !== '') {
+              output.push('');
+            }
+          } else {
+            // Re-indent: strip original indent, add new indent
+            const stripped = cl.substring(Math.min(minIndent, cl.length - cl.trimStart().length));
+            output.push(contentIndent + stripped.trim());
+          }
+        }
+        output.push(indent() + closeTag);
+      }
+
+      // Blank line after closing style/raw
+      if (tagLower === 'mj-style') {
+        addBlankLine();
+      }
+      if (tagLower === 'mj-raw' && !inBody) {
+        addBlankLine();
+      }
+
+      prevClosingTag = tagLower;
+      prevOpeningTag = '';
+      continue;
+    }
+
+    // Closing tag
+    if (isClosing) {
+      if (INDENT_TAGS.has(tagLower)) {
+        depth = Math.max(0, depth - 1);
+      }
+
+      // Blank line before </mj-body> and </mjml>
+      if (tagLower === 'mj-body' || tagLower === 'mjml') {
+        addBlankLine();
+      }
+
+      output.push(indent() + fullMatch);
+
+      // Blank line after </mj-head>, </mj-attributes>, </mj-html-attributes>
+      if (tagLower === 'mj-head' || tagLower === 'mj-attributes' || tagLower === 'mj-html-attributes') {
+        addBlankLine();
+      }
+
+      prevClosingTag = tagLower;
+      prevOpeningTag = '';
+      if (tagLower === 'mj-head') inBody = false;
+      continue;
+    }
+
+    // Self-closing tag
+    if (isSelfClosing) {
+      output.push(indent() + fullMatch);
+      prevOpeningTag = tagLower;
+      prevClosingTag = '';
+      continue;
+    }
+
+    // Opening tag — blank line rules
+    if (inBody) {
+      // Blank line before <mj-raw> that acts as a comment separator in body
+      if (tagLower === 'mj-raw') {
+        addBlankLine();
+      }
+      // Blank line between sibling sections/wrappers
+      if ((tagLower === 'mj-section' || tagLower === 'mj-wrapper') &&
+          (prevClosingTag === 'mj-section' || prevClosingTag === 'mj-wrapper')) {
+        addBlankLine();
+      }
+    }
+
+    // Blank line before <mj-attributes>, <mj-style>, <mj-html-attributes>
+    if (tagLower === 'mj-attributes' || tagLower === 'mj-html-attributes') {
+      addBlankLine();
+    }
+
+    output.push(indent() + fullMatch);
+
+    if (INDENT_TAGS.has(tagLower)) {
+      depth++;
+    }
+
+    // Blank line after <mjml>, <mj-head>, <mj-body>
+    if (tagLower === 'mjml' || tagLower === 'mj-head') {
+      addBlankLine();
+    }
+    if (tagLower === 'mj-body') {
+      inBody = true;
+    }
+
+    prevOpeningTag = tagLower;
+    prevClosingTag = '';
   }
-  return lines.join('\n');
+
+  // Any remaining text after the last tag
+  const remaining = mjml.substring(lastIndex).trim();
+  if (remaining) {
+    output.push(remaining);
+  }
+
+  // Final cleanup: collapse triple+ blank lines
+  return output.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────────
@@ -195,9 +379,10 @@ interface MjmlCodeEditorProps {
   mjmlString: string;
   onMjmlChange: (mjml: string) => void;
   height: string;
+  jumpToLine?: number;
 }
 
-export function MjmlCodeEditor({ mjmlString, onMjmlChange, height }: MjmlCodeEditorProps) {
+export function MjmlCodeEditor({ mjmlString, onMjmlChange, height, jumpToLine }: MjmlCodeEditorProps) {
   const [code, setCode] = useState(() => formatMjml(mjmlString));
   const [previewHtml, setPreviewHtml] = useState('');
   const compileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -218,6 +403,20 @@ export function MjmlCodeEditor({ mjmlString, onMjmlChange, height }: MjmlCodeEdi
       if (compileTimerRef.current) clearTimeout(compileTimerRef.current);
     };
   }, [mjmlString]);
+
+  // Jump to a specific line when requested
+  useEffect(() => {
+    if (!jumpToLine || jumpToLine <= 0) return;
+    setTimeout(() => {
+      const cm = editorRef.current?.editor || editorRef.current;
+      if (cm) {
+        const line = Math.round(jumpToLine) - 1; // CodeMirror is 0-indexed
+        cm.setCursor({ line, ch: 0 });
+        cm.scrollIntoView({ line, ch: 0 }, 100);
+        cm.focus();
+      }
+    }, 200);
+  }, [jumpToLine]);
 
   // Compile MJML → HTML for preview. Writes into iframe without destroying it
   // to preserve scroll position.
