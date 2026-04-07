@@ -1,4 +1,4 @@
-import { Button, Card, ConfigProvider, Layout, Tabs } from '@arco-design/web-react';
+import { Button, ConfigProvider, Layout, Tabs } from '@arco-design/web-react';
 import { useEditorProps, useFocusIdx } from 'easy-email-editor';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useWindowSize } from 'react-use';
@@ -113,12 +113,37 @@ function ResizeHandle({ side, onResize, inner }: {
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
 const SIDEBAR_MIN = 300;
-const SIDEBAR_DEFAULT = 600;
+const SIDEBAR_DEFAULT = 300;
 const SIDEBAR_MAX = 900;
-const LAYOUT_COL_MIN = 150;
-const LAYOUT_COL_DEFAULT = 220;
+const LAYOUT_COL_MIN = 120;
+const LAYOUT_COL_DEFAULT = 150;
 
 // ─── SimpleLayout ──────────────────────────────────────────────────────────────
+
+// ─── Sidebar preference persistence ───────────────────────────────────────────
+
+const SIDEBAR_PREFS_KEY = 'mjml-editor-sidebar-prefs';
+
+interface SidebarPrefs {
+  sidebarWidth: number;
+  layoutColumnWidth: number;
+  showLayoutColumn: boolean;
+}
+
+function loadSidebarPrefs(): SidebarPrefs | null {
+  try {
+    const raw = localStorage.getItem(SIDEBAR_PREFS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveSidebarPrefs(prefs: SidebarPrefs) {
+  try {
+    localStorage.setItem(SIDEBAR_PREFS_KEY, JSON.stringify(prefs));
+  } catch { /* ignore */ }
+}
 
 export const SimpleLayout: React.FC<
   {
@@ -130,25 +155,30 @@ export const SimpleLayout: React.FC<
 > = props => {
   const { height: containerHeight } = useEditorProps();
   const { width: viewportWidth } = useWindowSize();
-  const isNarrow = viewportWidth < 1280;
+  const isWide = viewportWidth > 1300;
 
-  // Sidebar states
-  const [sidebarHidden, setSidebarHidden] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(isNarrow ? SIDEBAR_MIN : SIDEBAR_DEFAULT);
-  const [showLayoutColumn, setShowLayoutColumn] = useState(false);
-  const [layoutColumnWidth, setLayoutColumnWidth] = useState(LAYOUT_COL_DEFAULT);
+  const savedPrefs = useRef(loadSidebarPrefs()).current;
+  const initShowLayout = savedPrefs ? savedPrefs.showLayoutColumn : isWide;
+  const initSidebarWidth = savedPrefs ? savedPrefs.sidebarWidth : (isWide ? SIDEBAR_DEFAULT + LAYOUT_COL_DEFAULT + 6 : SIDEBAR_DEFAULT);
+  const initLayoutColWidth = savedPrefs ? savedPrefs.layoutColumnWidth : LAYOUT_COL_DEFAULT;
+
+  const [sidebarHidden, setSidebarHidden] = useState(true);
+  const [showLayoutColumn, setShowLayoutColumn] = useState(initShowLayout);
+  const [sidebarWidth, setSidebarWidth] = useState(initSidebarWidth);
+  const [layoutColumnWidth, setLayoutColumnWidth] = useState(initLayoutColWidth);
 
   const [autoCollapse, setAutoCollapse] = useState(true);
 
-  // Auto-expand sidebar when a different block is focused
   const { focusIdx } = useFocusIdx();
-  const prevFocusIdxRef = useRef(focusIdx);
+
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (focusIdx && focusIdx !== prevFocusIdxRef.current) {
-      setSidebarHidden(false);
-    }
-    prevFocusIdxRef.current = focusIdx;
-  }, [focusIdx]);
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveSidebarPrefs({ sidebarWidth, layoutColumnWidth, showLayoutColumn });
+    }, 300);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [sidebarWidth, layoutColumnWidth, showLayoutColumn]);
 
   const onResizeSidebar = useCallback((delta: number) => {
     setSidebarWidth(w => Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, w + delta)));
@@ -169,7 +199,7 @@ export const SimpleLayout: React.FC<
           display: 'flex',
           width: '100%',
           overflow: 'hidden',
-          minWidth: 960,
+          minWidth: 0,
         }}
       >
         {/* ── Combined sidebar: Layout column + Config/MJML tabs ── */}
@@ -180,31 +210,30 @@ export const SimpleLayout: React.FC<
             display: sidebarHidden ? 'none' : undefined,
             flexShrink: 0,
             overflow: 'hidden',
+            borderTop: '1px solid #e5e7eb',
+            boxShadow: 'none',
           }}
           width={sidebarWidth}
         >
-          <div style={{ display: 'flex', height: '100%', position: 'relative' }}>
+          <div
+            className={styles.customScrollBar}
+            style={{ display: 'flex', height: '100%', position: 'relative', overflowY: 'auto', overflowX: 'hidden' }}
+          >
             {/* Column 1: Layout tree */}
             {showLayoutColumn && (
               <div
-                className={styles.customScrollBar}
                 style={{
                   width: layoutColumnWidth,
                   flexShrink: 0,
-                  height: '100%',
-                  overflowY: 'auto',
-                  overflowX: 'hidden',
+                  minHeight: '100%',
                   borderRight: '1px solid #e5e7eb',
                 }}
               >
-                <Card
-                  title={t('Layout')}
-                  style={{ border: 'none' }}
-                  headerStyle={{ height: 40, padding: '0 8px' }}
-                  bodyStyle={{ padding: 0 }}
+                <Tabs
+                  className={styles.layoutTabs}
                   extra={
                     <label
-                      style={{ display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer', fontSize: 10, color: '#6b7280' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer', fontSize: 10, color: '#6b7280', marginRight: 4 }}
                       title={autoCollapse ? t('Auto-collapse is on — unfocused sections collapse') : t('Auto-collapse is off — all sections stay expanded')}
                     >
                       <div style={{ position: 'relative', width: 24, height: 14 }}>
@@ -230,8 +259,16 @@ export const SimpleLayout: React.FC<
                     </label>
                   }
                 >
-                  <BlockLayer renderTitle={props.renderTitle} autoCollapse={autoCollapse} />
-                </Card>
+                  <Tabs.TabPane
+                    title={
+                      <div style={{ height: 31, lineHeight: '31px' }}>
+                        {t('Layout')}
+                      </div>
+                    }
+                  >
+                    <BlockLayer renderTitle={props.renderTitle} autoCollapse={autoCollapse} />
+                  </Tabs.TabPane>
+                </Tabs>
               </div>
             )}
 
@@ -245,18 +282,12 @@ export const SimpleLayout: React.FC<
               style={{
                 flex: 1,
                 minWidth: 0,
-                height: '100%',
+                minHeight: '100%',
                 display: 'flex',
                 flexDirection: 'column',
-                overflow: 'hidden',
               }}
             >
-              <Card
-                size='small'
-                style={{ height: '100%', border: 'none' }}
-                bodyStyle={{ padding: 0, height: '100%', overflowY: 'auto', overflowX: 'hidden' }}
-                className={styles.customScrollBarV2}
-              >
+              <div style={{ flex: 1 }}>
                 <Tabs
                   className={styles.layoutTabs}
                   extra={
@@ -322,7 +353,7 @@ export const SimpleLayout: React.FC<
                     {props.blockMjmlPanel || <BlockMjmlPanel />}
                   </Tabs.TabPane>
                 </Tabs>
-              </Card>
+              </div>
             </div>
           </div>
 
@@ -331,7 +362,10 @@ export const SimpleLayout: React.FC<
         </Layout.Sider>
 
         {/* ── Central content area ── */}
-        <Layout style={{ height: containerHeight, position: 'relative', overflow: 'hidden' }}>
+        <Layout
+          style={{ height: containerHeight, position: 'relative', overflow: 'hidden' }}
+          onDoubleClick={() => { if (sidebarHidden) setSidebarHidden(false); }}
+        >
           {/* Sidebar expand tab — visible when sidebar is hidden */}
           {sidebarHidden && (
             <div

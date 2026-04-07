@@ -299,16 +299,26 @@ export function BlockLayer(props: BlockLayerProps) {
     return keys;
   }, [focusIdx]);
 
-  // When autoCollapse is on, force-set expanded keys to only the focused path
+  // When autoCollapse is on, force-set expanded keys to only the focused path.
+  // The timeout clears forceExpandedKeys so manual expand/collapse still works
+  // within the focused section. We clean up pending timeouts to prevent
+  // a stale clear from nulling out a newer force-set during rapid focus changes.
   const prevFocusIdxRef = useRef(focusIdx);
+  const autoCollapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!props.autoCollapse) return;
     if (focusIdx !== prevFocusIdxRef.current) {
       prevFocusIdxRef.current = focusIdx;
+      if (autoCollapseTimerRef.current) clearTimeout(autoCollapseTimerRef.current);
       setForceExpandedKeys(focusAncestorKeys);
-      // Clear force after tree has applied them, so manual expand/collapse still works
-      setTimeout(() => setForceExpandedKeys(null), 50);
+      autoCollapseTimerRef.current = setTimeout(() => {
+        setForceExpandedKeys(null);
+        autoCollapseTimerRef.current = null;
+      }, 50);
     }
+    return () => {
+      if (autoCollapseTimerRef.current) clearTimeout(autoCollapseTimerRef.current);
+    };
   }, [focusIdx, props.autoCollapse, focusAncestorKeys]);
 
   const expandedKeys = focusAncestorKeys;

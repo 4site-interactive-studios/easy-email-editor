@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Controlled as CodeMirror } from 'react-codemirror2';
 import { WrapText, Monitor, Smartphone, Maximize2, Minimize2 } from 'lucide-react';
+import { useCodeMirrorControls } from '@demo/hooks/useCodeMirrorControls';
 
 // CodeMirror core
 import 'codemirror/lib/codemirror.css';
@@ -203,8 +204,8 @@ export function MjmlCodeEditor({ mjmlString, onMjmlChange, height }: MjmlCodeEdi
   const editorRef = useRef<any>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [splitPos, setSplitPos] = useState(50);
-  const [lineWrap, setLineWrap] = useState(false);
-  const [fullscreen, setFullscreen] = useState(false);
+  const { lineWrap, toggleLineWrap, fullscreen, toggleFullscreen } =
+    useCodeMirrorControls(editorRef, false);
   const [previewWidth, setPreviewWidth] = useState<'desktop' | 'mobile'>('desktop');
 
   // Sync incoming mjmlString when it changes (e.g., entering code mode)
@@ -268,47 +269,6 @@ export function MjmlCodeEditor({ mjmlString, onMjmlChange, height }: MjmlCodeEdi
       }, 10);
     }
   }, [compile, onMjmlChange]);
-
-  // Toggle line wrapping
-  const toggleLineWrap = useCallback(() => {
-    setLineWrap(w => {
-      const next = !w;
-      if (editorRef.current) {
-        const cm = editorRef.current.editor || editorRef.current;
-        if (cm?.setOption) cm.setOption('lineWrapping', next);
-      }
-      return next;
-    });
-  }, []);
-
-  // Toggle fullscreen
-  const toggleFullscreen = useCallback(() => {
-    setFullscreen(f => !f);
-    setTimeout(() => {
-      if (editorRef.current) {
-        const cm = editorRef.current.editor || editorRef.current;
-        if (cm?.refresh) cm.refresh();
-      }
-    }, 50);
-  }, []);
-
-  // Escape exits fullscreen
-  useEffect(() => {
-    if (!fullscreen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setFullscreen(false);
-        setTimeout(() => {
-          if (editorRef.current) {
-            const cm = editorRef.current.editor || editorRef.current;
-            if (cm?.refresh) cm.refresh();
-          }
-        }, 50);
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [fullscreen]);
 
   // Splitter drag
   const handleSplitterMouseDown = useCallback((e: React.MouseEvent) => {

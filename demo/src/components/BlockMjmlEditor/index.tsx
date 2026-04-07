@@ -8,7 +8,6 @@ import {
   BlockManager,
   getPageIdx,
   getParentIdx,
-  getParentByIdx,
   JsonToMjml,
 } from 'easy-email-core';
 import {
@@ -18,8 +17,9 @@ import {
   useEditorProps,
   scrollBlockEleIntoView,
 } from 'easy-email-editor';
-import { MjmlToJson } from 'easy-email-extensions';
+import { parseXMLtoBlockFidelity } from 'easy-email-extensions';
 import { cloneDeep, get } from 'lodash';
+import { useCodeMirrorControls } from '@demo/hooks/useCodeMirrorControls';
 
 // CodeMirror core
 import 'codemirror/lib/codemirror.css';
@@ -50,10 +50,13 @@ import 'codemirror/addon/search/match-highlighter';
 import 'codemirror/addon/dialog/dialog';
 import 'codemirror/addon/dialog/dialog.css';
 
+type MjmlError = { line: number; message: string; tagName: string; formattedMessage: string };
+
 function getBlockDisplayName(block: any): string {
   if (!block) return '?';
   return BlockManager.getBlockByType(block.type)?.name || block.type || '?';
 }
+
 
 /**
  * A CodeMirror-based MJML editor for the currently focused block.
@@ -63,22 +66,51 @@ export function BlockMjmlEditor() {
   const { setValueByIdx, focusBlock, values } = useBlock();
   const { focusIdx, setFocusIdx } = useFocusIdx();
   const { pageData } = useEditorContext();
-  const [mjmlValid, setMjmlValid] = useState(true);
   const { mergeTags } = useEditorProps();
   const [mjmlText, setMjmlText] = useState('');
   const editorRef = useRef<any>(null);
   const applyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const validateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const userEditingRef = useRef(false); // suppress sync-back while user is typing
+  const userEditingRef = useRef(false);
 
-  // Editor options
-  const [lineWrap, setLineWrap] = useState(true);
-  const [fullscreen, setFullscreen] = useState(false);
+  const { lineWrap, toggleLineWrap, fullscreen, toggleFullscreen } =
+    useCodeMirrorControls(editorRef, true);
 
-  // Validation state
-  type MjmlError = { line: number; message: string; tagName: string; formattedMessage: string };
   const [mjmlErrors, setMjmlErrors] = useState<MjmlError[]>([]);
   const [showErrors, setShowErrors] = useState(false);
+  const mjmlValid = mjmlErrors.length === 0;
+
+  /**
+   * Build the full page MJML with the edited block swapped in at focusIdx.
+   * This gives mjml-browser the real document context for correct parsing.
+   */
+  const buildFullPageMjml = useCallback((blockMjml: string): string => {
+    if (blockMjml.trim().startsWith('<mjml')) return blockMjml;
+
+    // Clone the page data tree and swap the focused block's MJML
+    // by generating full page MJML and replacing the focused block's portion
+    const fullPageMjml = JsonToMjml({
+      idx: getPageIdx(),
+      data: pageData,
+      context: pageData,
+      mode: 'production',
+      dataSource: cloneDeep(mergeTags),
+    });
+
+    // Generate the current (unedited) MJML for the focused block
+    const focusBlockData = get(values, focusIdx);
+    if (!focusBlockData) return blockMjml;
+    const originalBlockMjml = JsonToMjml({
+      idx: focusIdx,
+      data: focusBlockData,
+      context: pageData,
+      mode: 'production',
+      dataSource: cloneDeep(mergeTags),
+    });
+
+    // Replace the original block MJML with the edited version in the full page
+    const replaced = fullPageMjml.replace(originalBlockMjml, blockMjml);
+    return replaced;
+  }, [focusIdx, values, pageData, mergeTags]);
 
   // Build breadcrumb trail from page root to current block (skip Page itself)
   const breadcrumbs = useMemo(() => {
@@ -111,10 +143,8 @@ export function BlockMjmlEditor() {
       prevFocusIdxRef.current = focusIdx;
     }
 
-    // Don't overwrite the editor while the user is actively editing
     if (userEditingRef.current) return;
 
-    setMjmlValid(true);
     setMjmlErrors([]);
     setShowErrors(false);
     if (focusBlock) {
@@ -132,121 +162,74 @@ export function BlockMjmlEditor() {
     }
     return () => {
       if (applyTimerRef.current) clearTimeout(applyTimerRef.current);
-      if (validateTimerRef.current) clearTimeout(validateTimerRef.current);
     };
   }, [focusBlock, focusIdx, pageData, mergeTags]);
 
-  // Run MJML validation to capture errors (does not apply changes)
-  const runValidation = useCallback((mjmlStr: string) => {
-    try {
-      // Wrap partial MJML in a full document so mjml-browser can validate it
-      const fullDoc = mjmlStr.trim().startsWith('<mjml')
-        ? mjmlStr
-        : `<mjml><mj-body><mj-section><mj-column>${mjmlStr}</mj-column></mj-section></mj-body></mjml>`;
-      const result = mjml(fullDoc, { validationLevel: 'soft' });
-      setMjmlErrors(result.errors || []);
-    } catch (err: any) {
-      setMjmlErrors([{
-        line: 0,
-        message: err?.message || 'MJML failed to parse',
-        tagName: 'mjml',
-        formattedMessage: err?.message || 'The MJML could not be parsed.',
-      }]);
-    }
-  }, []);
-
-  // Apply MJML changes back to the block tree.
-  // silent=true: during typing, skip errors silently (don't update visual editor)
-  // silent=false: on blur, show error if still invalid
+  // Apply edited MJML back to the block tree. Builds the full page MJML
+  // with the edit swapped in, then parses and extracts the block at focusIdx.
   const applyMjml = useCallback((mjmlStr: string, silent = false) => {
     try {
-      const parseValue = MjmlToJson(mjmlStr, true);
-      if (parseValue.type !== BasicType.PAGE) {
-        const parentBlock = getParentByIdx(values, focusIdx)!;
-        const parseBlock = BlockManager.getBlockByType(parseValue.type);
-        if (!parseBlock?.validParentType.includes(parentBlock?.type)) {
-          setMjmlValid(false);
-          const parentName = BlockManager.getBlockByType(parentBlock?.type)?.name || parentBlock?.type || 'parent';
-          const childName = BlockManager.getBlockByType(parseValue.type)?.name || parseValue.type || 'block';
-          setMjmlErrors([{
-            line: 0,
-            message: `<${childName}> is not valid inside <${parentName}>`,
-            tagName: parseValue.type,
-            formattedMessage: `A <${childName}> block cannot be placed inside a <${parentName}> block at this position.`,
-          }]);
-          if (!silent) Message.error('Invalid content for this position');
-          return;
-        }
-      } else if (focusIdx !== getPageIdx()) {
-        setMjmlValid(false);
+      const fullDoc = buildFullPageMjml(mjmlStr);
+      const parsed = parseXMLtoBlockFidelity(fullDoc);
+
+      // Extract the edited block from the parsed page using the focusIdx path.
+      // focusIdx is like "content.children.[2].children.[0].children.[0]"
+      // parsed is the page root (= "content"), so strip the "content" prefix.
+      const relativePath = focusIdx.replace(/^content\.?/, '');
+      const blockData = relativePath ? get(parsed, relativePath) : parsed;
+
+      if (!blockData) {
         setMjmlErrors([{
-          line: 0,
-          message: 'Page-level content cannot replace a non-page block',
-          tagName: 'page',
-          formattedMessage: 'This MJML defines a full page, but the current block is not the page root.',
+          line: 0, message: 'Could not locate block after parsing',
+          tagName: '', formattedMessage: 'The edited MJML changed the document structure. Check your changes.',
         }]);
-        if (!silent) Message.error('Invalid content');
+        if (!silent) Message.error('Invalid MJML');
         return;
       }
-      setMjmlValid(true);
+
       setMjmlErrors([]);
-      setValueByIdx(focusIdx, parseValue);
+      setValueByIdx(focusIdx, blockData);
     } catch (error: any) {
-      setMjmlValid(false);
-      // Try mjml-browser validation for structured errors
+      const rawMsg = error?.message || '';
+      const friendlyMsg =
+        /invalid content/i.test(rawMsg) ? 'Could not parse this MJML. Check for unclosed tags or invalid nesting.' :
+        /not found/i.test(rawMsg) ? `Unknown MJML element. ${rawMsg}` :
+        rawMsg || 'The MJML could not be parsed.';
+
+      // Try mjml-browser for structured validation errors
       try {
-        const fullDoc = mjmlStr.trim().startsWith('<mjml')
-          ? mjmlStr
-          : `<mjml><mj-body><mj-section><mj-column>${mjmlStr}</mj-column></mj-section></mj-body></mjml>`;
+        const fullDoc = buildFullPageMjml(mjmlStr);
         const result = mjml(fullDoc, { validationLevel: 'soft' });
         if (result.errors && result.errors.length > 0) {
           setMjmlErrors(result.errors);
         } else {
           setMjmlErrors([{
-            line: 0,
-            message: error?.message || 'Invalid MJML',
-            tagName: '',
-            formattedMessage: error?.message || 'The MJML could not be parsed.',
+            line: 0, message: rawMsg || 'Invalid MJML',
+            tagName: '', formattedMessage: friendlyMsg,
           }]);
         }
-      } catch (parseErr: any) {
+      } catch {
         setMjmlErrors([{
-          line: 0,
-          message: error?.message || parseErr?.message || 'Invalid MJML',
-          tagName: '',
-          formattedMessage: error?.message || parseErr?.message || 'The MJML could not be parsed.',
+          line: 0, message: rawMsg || 'Invalid MJML',
+          tagName: '', formattedMessage: friendlyMsg,
         }]);
       }
       if (!silent) Message.error('Invalid MJML');
     }
-  }, [focusIdx, setValueByIdx, values]);
+  }, [focusIdx, setValueByIdx, buildFullPageMjml]);
 
-  // Handle code changes — short debounce for apply + validation
   const handleChange = useCallback((_editor: any, _data: any, value: string) => {
     userEditingRef.current = true;
     setMjmlText(value);
     if (applyTimerRef.current) clearTimeout(applyTimerRef.current);
     applyTimerRef.current = setTimeout(() => applyMjml(value, true), 300);
-    // Debounced validation (300ms)
-    if (validateTimerRef.current) clearTimeout(validateTimerRef.current);
-    validateTimerRef.current = setTimeout(() => runValidation(value), 300);
-  }, [applyMjml, runValidation]);
+  }, [applyMjml]);
 
-  // Instant validation on cursor activity (cursor move, click, etc.)
-  const handleCursorActivity = useCallback((_editor: any) => {
-    if (!userEditingRef.current) return;
-    // Run validation immediately on cursor move
-    if (validateTimerRef.current) clearTimeout(validateTimerRef.current);
-    runValidation(mjmlText);
-  }, [runValidation, mjmlText]);
-
-  // Apply on blur — show error if invalid
   const handleBlur = useCallback(() => {
     if (applyTimerRef.current) clearTimeout(applyTimerRef.current);
-    if (validateTimerRef.current) clearTimeout(validateTimerRef.current);
+    if (!userEditingRef.current) return;
     applyMjml(mjmlText, false);
-    runValidation(mjmlText);
-  }, [applyMjml, runValidation, mjmlText]);
+  }, [applyMjml, mjmlText]);
 
   const handleBreadcrumbClick = useCallback((idx: string) => {
     if (idx === focusIdx) return;
@@ -258,46 +241,6 @@ export function BlockMjmlEditor() {
     setFocusIdx(idx);
     scrollBlockEleIntoView({ idx });
   }, [focusIdx, setFocusIdx, applyMjml, mjmlText]);
-
-  const toggleLineWrap = useCallback(() => {
-    setLineWrap(w => {
-      const next = !w;
-      if (editorRef.current) {
-        const cm = editorRef.current.editor || editorRef.current;
-        if (cm?.setOption) cm.setOption('lineWrapping', next);
-      }
-      return next;
-    });
-  }, []);
-
-  const toggleFullscreen = useCallback(() => {
-    setFullscreen(f => !f);
-    // Refresh CodeMirror after layout change
-    setTimeout(() => {
-      if (editorRef.current) {
-        const cm = editorRef.current.editor || editorRef.current;
-        if (cm?.refresh) cm.refresh();
-      }
-    }, 50);
-  }, []);
-
-  // Escape key exits fullscreen
-  useEffect(() => {
-    if (!fullscreen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setFullscreen(false);
-        setTimeout(() => {
-          if (editorRef.current) {
-            const cm = editorRef.current.editor || editorRef.current;
-            if (cm?.refresh) cm.refresh();
-          }
-        }, 50);
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [fullscreen]);
 
   const blockType = focusBlock?.type || '';
   const blockName = blockType
@@ -565,7 +508,6 @@ export function BlockMjmlEditor() {
         }}
         onBeforeChange={handleChange}
         onBlur={handleBlur}
-        onCursor={handleCursorActivity}
       />
     </div>
   );

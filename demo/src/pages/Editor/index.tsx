@@ -328,7 +328,7 @@ export default function Editor() {
   // Code mode: 'visual' | 'code' | 'block'
   const [codeMode, setCodeMode] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
-  const [previewHtml, setPreviewHtml] = useState('');
+  const previewHtmlRef = useRef('');
   const [previewWidth, setPreviewWidth] = useState<'desktop' | 'mobile'>('desktop');
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
   const [blockCodeMode, setBlockCodeMode] = useState(false);
@@ -637,14 +637,26 @@ export default function Editor() {
   const enterPreviewMode = useCallback(async () => {
     const html = await compileToHtml();
     if (html) {
-      setPreviewHtml(html);
+      previewHtmlRef.current = html;
       setPreviewMode(true);
+      // Auto-switch to mobile if viewport is narrower than the email width
+      if (formApiRef.current) {
+        const emailWidth = parseInt(formApiRef.current.getState().values.content?.attributes?.width || '600', 10);
+        if (window.innerWidth < emailWidth) {
+          setPreviewWidth('mobile');
+        }
+      }
+      // Write into iframe after it mounts
+      setTimeout(() => {
+        const iframe = previewIframeRef.current;
+        if (iframe) iframe.srcdoc = html;
+      }, 0);
     }
   }, [compileToHtml]);
 
   const exitPreviewMode = useCallback(() => {
     setPreviewMode(false);
-    setPreviewHtml('');
+    previewHtmlRef.current = '';
   }, []);
 
   const handleExportHtml = useCallback(async () => {
@@ -784,18 +796,32 @@ export default function Editor() {
     }
   }, [blockCodeFocusIdx, savedArticleId]);
 
-  const handleExportMjml = useCallback(() => {
+  const getCleanMjml = useCallback((): string => {
     let mjml = codeMode
       ? codeMjmlRef.current
       : formApiRef.current
         ? JsonToMjml({ data: formApiRef.current.getState().values.content, mode: 'production', context: formApiRef.current.getState().values.content, beautify: true })
         : '';
-    if (!mjml) return;
+    if (!mjml) return '';
     mjml = cleanMjmlForDisplay(mjml, getAppSettings().hideEditorMetadata);
-    mjml = applyExportFindReplace(mjml, 'mjml');
+    return applyExportFindReplace(mjml, 'mjml');
+  }, [codeMode]);
+
+  const handleExportMjml = useCallback(() => {
+    const mjml = getCleanMjml();
+    if (!mjml) return;
     const subject = formApiRef.current?.getState().values.subject || 'email';
     downloadFile(mjml, `${subject}.mjml`, 'text/xml');
-  }, [codeMode]);
+  }, [getCleanMjml]);
+
+  const handleCopyMjml = useCallback(() => {
+    const mjml = getCleanMjml();
+    if (!mjml) return;
+    navigator.clipboard.writeText(mjml).then(
+      () => Message.success('MJML copied to clipboard.'),
+      () => Message.error('Copy failed.'),
+    );
+  }, [getCleanMjml]);
 
   // ── Fix with AI ──
   const handleFixWithAI = useCallback(async (issueIndices?: number[]) => {
@@ -1014,7 +1040,7 @@ export default function Editor() {
                       <Home size={18} />
                     </button>
                     {isTemplateMode && (
-                      <span className='inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-purple-700 bg-purple-100 border border-purple-200 rounded'>
+                      <span className='inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-purple-600 bg-purple-50 border border-purple-100 rounded'>
                         <LayoutTemplate size={12} />
                         Template
                       </span>
@@ -1038,8 +1064,8 @@ export default function Editor() {
                     )}
                   </div>
 
-                  <div className='flex items-center gap-2'>
-                    {/* Save status */}
+                  <div className='flex items-center gap-1'>
+                    {/* ── Group 1: Save + Validation status ── */}
                     {!savedArticleId ? (
                       <button
                         className='px-4 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors'
@@ -1050,112 +1076,94 @@ export default function Editor() {
                     ) : (() => {
                       const hasUnsavedChanges = contentJson !== lastSavedContentRef.current;
                       return (
-                      <span className='relative group inline-flex items-center'>
-                        <span
-                          className={`inline-flex items-center gap-1 text-sm font-medium cursor-default ${
+                        <span className='relative group inline-flex items-center gap-1.5 px-2 py-1'>
+                          <span className={`inline-flex items-center gap-1 text-xs font-medium cursor-default ${
                             saveError ? 'text-amber-600' : hasUnsavedChanges ? 'text-gray-400' : 'text-green-600'
-                          }`}
-                        >
-                          {saveError ? (
-                            <><AlertTriangle size={14} /> Save failed</>
-                          ) : hasUnsavedChanges ? (
-                            !appSettings.autoSaveEnabled ? (
-                              <button
-                                className='px-3 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors'
-                                onClick={handleSave}
-                              >
-                                Save
-                              </button>
+                          }`}>
+                            {saveError ? (
+                              <><AlertTriangle size={12} /> Save failed</>
+                            ) : hasUnsavedChanges ? (
+                              !appSettings.autoSaveEnabled ? (
+                                <button
+                                  className='px-2.5 py-0.5 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors'
+                                  onClick={handleSave}
+                                >
+                                  Save
+                                </button>
+                              ) : (
+                                <><span className='text-gray-300'>●</span> Saving...</>
+                              )
                             ) : (
-                              <><span className='text-gray-300'>●</span> Saving...</>
-                            )
-                          ) : (
-                            <><Check size={14} /> Saved</>
-                          )}
+                              <><Check size={12} /> Saved</>
+                            )}
+                          </span>
+                          <span className='pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-2 px-2.5 py-1 text-xs font-medium text-white bg-gray-800 rounded shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-50'>
+                            {savedTooltip}
+                          </span>
                         </span>
-                        <span className='pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-2 px-2.5 py-1 text-xs font-medium text-white bg-gray-800 rounded shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-50'>
-                          {savedTooltip}
-                        </span>
-                      </span>
                       );
                     })()}
 
-                    {/* Auto-save toggle */}
-                    {savedArticleId && (
-                      <label className='inline-flex items-center gap-1.5 cursor-pointer select-none' title={appSettings.autoSaveEnabled ? 'Auto-save is on' : 'Auto-save is off'}>
-                        <div className='relative'>
-                          <input
-                            type='checkbox'
-                            className='sr-only peer'
-                            checked={appSettings.autoSaveEnabled}
-                            onChange={e => {
-                              updateAppSettings({ autoSaveEnabled: e.target.checked });
-                              if (e.target.checked && contentJson !== lastSavedContentRef.current && formApiRef.current) {
-                                autosave(savedArticleId, formApiRef.current.getState().values);
-                              }
-                            }}
-                          />
-                          <div className='w-7 h-4 bg-gray-300 rounded-full peer-checked:bg-green-500 transition-colors' />
-                          <div className='absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform peer-checked:translate-x-3' />
-                        </div>
-                        <span className='text-xs text-gray-500'>Auto</span>
-                      </label>
-                    )}
+                    {/* Separator */}
+                    <div className='w-px h-5 bg-gray-200 mx-1' />
 
-                    {/* Validation — only show when there are errors */}
-                    {hasErrors && (
-                      <button
-                        className='inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border transition-colors text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100'
-                        onClick={() => setShowValidation(true)}
-                        title='MJML validation report'
-                      >
-                        <AlertTriangle size={14} />
-                        {errorCount} issue{errorCount > 1 ? 's' : ''}
-                      </button>
-                    )}
-
-                    {/* History */}
+                    {/* ── Group 2: Actions ── */}
+                    <button
+                      className={`inline-flex items-center justify-center w-8 h-8 border-0 rounded-md transition-colors ${
+                        hasErrors ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                      }`}
+                      onClick={() => setShowValidation(true)}
+                      title={hasErrors ? `${errorCount} validation issue${errorCount > 1 ? 's' : ''}` : 'Validation report'}
+                    >
+                      <AlertTriangle size={15} />
+                    </button>
                     {savedArticleId && (
                       <button
-                        className='inline-flex items-center justify-center w-8 h-8 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors'
+                        className='inline-flex items-center justify-center w-8 h-8 border-0 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors'
                         onClick={() => {
                           api.getRevisions(savedArticleId).then(setRevisions);
                           setShowHistory(true);
                         }}
                         title='Revision history'
                       >
-                        <History size={16} />
+                        <History size={15} />
                       </button>
                     )}
-
-                    {/* Export */}
                     <HMenu as='div' className='relative'>
-                      <HMenu.Button className='inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors'>
-                        <Download size={14} />
-                        Export
-                        <ChevronDown size={12} />
+                      <HMenu.Button className='inline-flex items-center justify-center w-8 h-8 border-0 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors' title='Export'>
+                        <Download size={15} />
                       </HMenu.Button>
                       <Transition as={Fragment} enter='transition ease-out duration-100' enterFrom='transform opacity-0 scale-95' enterTo='transform opacity-100 scale-100' leave='transition ease-in duration-75' leaveFrom='transform opacity-100 scale-100' leaveTo='transform opacity-0 scale-95'>
-                        <HMenu.Items className='absolute right-0 mt-1 w-56 bg-white rounded-md shadow-lg ring-1 ring-black/5 focus:outline-none z-50'>
+                        <HMenu.Items className='absolute right-0 mt-1 w-52 bg-white rounded-md shadow-lg ring-1 ring-black/5 focus:outline-none z-50'>
                           <div className='py-1'>
                             <HMenu.Item>
                               {({ active }) => (
                                 <button className={`${active ? 'bg-gray-100' : ''} flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700`} onClick={handleExportHtml}>
-                                  <Download size={14} /> Download .html file
-                                </button>
-                              )}
-                            </HMenu.Item>
-                            <HMenu.Item>
-                              {({ active }) => (
-                                <button className={`${active ? 'bg-gray-100' : ''} flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700`} onClick={handleCopyHtml}>
-                                  <Copy size={14} /> Copy HTML to clipboard
+                                  <Download size={14} /> Download .html
                                 </button>
                               )}
                             </HMenu.Item>
                             <HMenu.Item>
                               {({ active }) => (
                                 <button className={`${active ? 'bg-gray-100' : ''} flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700`} onClick={handleExportMjml}>
-                                  <FileCode size={14} /> Download .mjml file
+                                  <Download size={14} /> Download .mjml
+                                </button>
+                              )}
+                            </HMenu.Item>
+                          </div>
+                          <div className='border-t border-gray-100' />
+                          <div className='py-1'>
+                            <HMenu.Item>
+                              {({ active }) => (
+                                <button className={`${active ? 'bg-gray-100' : ''} flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700`} onClick={handleCopyHtml}>
+                                  <Copy size={14} /> Copy HTML
+                                </button>
+                              )}
+                            </HMenu.Item>
+                            <HMenu.Item>
+                              {({ active }) => (
+                                <button className={`${active ? 'bg-gray-100' : ''} flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700`} onClick={handleCopyMjml}>
+                                  <Copy size={14} /> Copy MJML
                                 </button>
                               )}
                             </HMenu.Item>
@@ -1164,37 +1172,14 @@ export default function Editor() {
                       </Transition>
                     </HMenu>
 
-                    {/* Mode toggle */}
-                    <div className='inline-flex rounded-md border border-gray-300 overflow-hidden'>
+                    {/* Separator */}
+                    <div className='w-px h-5 bg-gray-200 mx-1' />
+
+                    {/* ── Group 3: Mode toggle ── */}
+                    <div className='inline-flex rounded-md border border-gray-200 overflow-hidden'>
                       <button
-                        className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium transition-colors ${
-                          !codeMode && !previewMode ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
-                        }`}
-                        onClick={() => {
-                          if (codeMode) exitCodeMode();
-                          if (previewMode) exitPreviewMode();
-                        }}
-                        title='Visual editor'
-                      >
-                        <Eye size={14} />
-                        Visual
-                      </button>
-                      <button
-                        className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium border-l border-gray-300 transition-colors ${
-                          previewMode ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
-                        }`}
-                        onClick={() => {
-                          if (codeMode) exitCodeMode();
-                          if (!previewMode) enterPreviewMode();
-                        }}
-                        title='HTML preview'
-                      >
-                        <Monitor size={14} />
-                        Preview
-                      </button>
-                      <button
-                        className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium border-l border-gray-300 transition-colors ${
-                          codeMode ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
+                        className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium border-0 transition-colors cursor-pointer ${
+                          codeMode ? 'bg-blue-600 text-white' : 'bg-white text-gray-400 hover:text-gray-600 hover:bg-gray-50'
                         }`}
                         onClick={() => {
                           if (previewMode) exitPreviewMode();
@@ -1204,6 +1189,32 @@ export default function Editor() {
                       >
                         <Code size={14} />
                         Code
+                      </button>
+                      <button
+                        className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium border-0 border-l border-l-gray-200 transition-colors cursor-pointer ${
+                          !codeMode && !previewMode ? 'bg-blue-600 text-white' : 'bg-white text-gray-400 hover:text-gray-600 hover:bg-gray-50'
+                        }`}
+                        onClick={() => {
+                          if (codeMode) exitCodeMode();
+                          if (previewMode) exitPreviewMode();
+                        }}
+                        title='Visual editor'
+                      >
+                        <Eye size={14} />
+                        Edit
+                      </button>
+                      <button
+                        className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium border-0 border-l border-l-gray-200 transition-colors cursor-pointer ${
+                          previewMode ? 'bg-blue-600 text-white' : 'bg-white text-gray-400 hover:text-gray-600 hover:bg-gray-50'
+                        }`}
+                        onClick={() => {
+                          if (codeMode) exitCodeMode();
+                          if (!previewMode) enterPreviewMode();
+                        }}
+                        title='HTML preview'
+                      >
+                        <Monitor size={14} />
+                        Preview
                       </button>
                     </div>
                   </div>
@@ -1236,17 +1247,17 @@ export default function Editor() {
                     height='calc(100vh - 52px)'
                   />
                 ) : (
-                  <>
+                  <div style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
                     {/* Preview overlay — rendered on top, visual editor stays mounted underneath */}
                     {previewMode && (
-                      <div style={{ position: 'fixed', top: 52, left: 0, right: 0, bottom: 0, zIndex: 50, display: 'flex', flexDirection: 'column', background: '#f5f5f5' }}>
+                      <div style={{ position: 'absolute', inset: 0, zIndex: 50, display: 'flex', flexDirection: 'column', background: '#f5f5f5' }}>
                         <div style={{
-                          padding: '6px 12px',
+                          padding: '6px 20px',
                           background: '#fff',
                           borderBottom: '1px solid #e5e7eb',
-                          display: 'flex',
+                          display: 'grid',
+                          gridTemplateColumns: '1fr auto 1fr',
                           alignItems: 'center',
-                          justifyContent: 'space-between',
                           flexShrink: 0,
                         }}>
                           <button
@@ -1263,6 +1274,7 @@ export default function Editor() {
                               cursor: 'pointer',
                               fontSize: 12,
                               fontWeight: 500,
+                              justifySelf: 'start',
                             }}
                             title='Back to visual editor'
                           >
@@ -1310,8 +1322,64 @@ export default function Editor() {
                               Mobile
                             </button>
                           </div>
-                          {/* Spacer to balance the layout */}
-                          <div style={{ width: 120 }} />
+                          <HMenu as='div' className='relative' style={{ justifySelf: 'end' }}>
+                            <HMenu.Button
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                padding: '4px 10px',
+                                border: '1px solid #d1d5db',
+                                borderRadius: 4,
+                                background: '#fff',
+                                color: '#374151',
+                                cursor: 'pointer',
+                                fontSize: 12,
+                                fontWeight: 500,
+                              }}
+                              title='Export'
+                            >
+                              <Download size={14} />
+                              Export
+                            </HMenu.Button>
+                            <Transition as={Fragment} enter='transition ease-out duration-100' enterFrom='transform opacity-0 scale-95' enterTo='transform opacity-100 scale-100' leave='transition ease-in duration-75' leaveFrom='transform opacity-100 scale-100' leaveTo='transform opacity-0 scale-95'>
+                              <HMenu.Items className='absolute right-0 mt-1 w-52 bg-white rounded-md shadow-lg ring-1 ring-black/5 focus:outline-none z-50'>
+                                <div className='py-1'>
+                                  <HMenu.Item>
+                                    {({ active }) => (
+                                      <button className={`${active ? 'bg-gray-100' : ''} flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 border-0 cursor-pointer`} onClick={handleExportHtml}>
+                                        <Download size={14} /> Download .html
+                                      </button>
+                                    )}
+                                  </HMenu.Item>
+                                  <HMenu.Item>
+                                    {({ active }) => (
+                                      <button className={`${active ? 'bg-gray-100' : ''} flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 border-0 cursor-pointer`} onClick={handleExportMjml}>
+                                        <Download size={14} /> Download .mjml
+                                      </button>
+                                    )}
+                                  </HMenu.Item>
+                                </div>
+                                <div className='border-t border-gray-100' />
+                                <div className='py-1'>
+                                  <HMenu.Item>
+                                    {({ active }) => (
+                                      <button className={`${active ? 'bg-gray-100' : ''} flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 border-0 cursor-pointer`} onClick={handleCopyHtml}>
+                                        <Copy size={14} /> Copy HTML
+                                      </button>
+                                    )}
+                                  </HMenu.Item>
+                                  <HMenu.Item>
+                                    {({ active }) => (
+                                      <button className={`${active ? 'bg-gray-100' : ''} flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 border-0 cursor-pointer`} onClick={handleCopyMjml}>
+                                        <Copy size={14} /> Copy MJML
+                                      </button>
+                                    )}
+                                  </HMenu.Item>
+                                </div>
+                              </HMenu.Items>
+                            </Transition>
+                          </HMenu>
                         </div>
                         <div style={{
                           flex: 1,
@@ -1322,7 +1390,6 @@ export default function Editor() {
                         }}>
                           <iframe
                             ref={previewIframeRef}
-                            srcDoc={previewHtml}
                             style={{
                               width: previewWidth === 'mobile' ? 375 : '100%',
                               maxWidth: '100%',
@@ -1338,7 +1405,7 @@ export default function Editor() {
                       </div>
                     )}
                     {/* Visual editor — always mounted, hidden behind preview when active */}
-                    <div ref={editorContainerRef as any} style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
+                    <div ref={editorContainerRef as any} style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
                       <SimpleLayout showBlockLayer blockMjmlPanel={<BlockMjmlEditor />}>
                         <EmailEditor />
                       </SimpleLayout>
@@ -1358,7 +1425,7 @@ export default function Editor() {
                       )}
                       <BlockInsertButtons containerRef={editorContainerRef as React.RefObject<HTMLElement>} />
                     </div>
-                  </>
+                  </div>
                 )}
               </>
             );
